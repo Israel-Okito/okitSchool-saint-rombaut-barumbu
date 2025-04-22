@@ -1,0 +1,385 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { format, endOfMonth, subMonths, startOfMonth } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Fonction pour récupérer les transactions
+const fetchTransactions = async (startDate, endDate) => {
+  const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+  const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+  
+  const url = `/api/bypass-rls/journal/period?start=${formattedStartDate}&end=${formattedEndDate}`;
+  
+  try {
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erreur ${response.status}: ${errorText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur lors de la récupération des données:', error);
+    throw error;
+  }
+};
+
+// Créer un client React Query pour cette page
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+function RepartitionPageContent() {
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [totalEntrees, setTotalEntrees] = useState(0);
+  const [totalSorties, setTotalSorties] = useState(0);
+  const [categoryTotals, setCategoryTotals] = useState({});
+  const [periode, setPeriode] = useState({ start: '', end: '' });
+
+  // Les catégories avec leurs pourcentages préétablis
+  const categories = {
+    'Charge du personnel': { pourcentage: 60 },
+    'Fonctionnement': { pourcentage: 9 },
+    'Investissement': { pourcentage: 10 },
+    'Économat': { pourcentage: 18 },
+    'Santé': { pourcentage: 3 }
+  };
+
+  // Préparer les dates pour la requête
+  const getPeriodDates = useCallback(() => {
+    const [year, month] = selectedMonth.split('-');
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const endDate = endOfMonth(startDate);
+
+    // Mettre à jour la période pour l'affichage
+    setPeriode({
+      start: format(startDate, 'dd MMMM yyyy', { locale: fr }),
+      end: format(endDate, 'dd MMMM yyyy', { locale: fr })
+    });
+
+    return { startDate, endDate };
+  }, [selectedMonth]);
+
+  // Utiliser TanStack Query pour charger les données
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['transactions', selectedMonth],
+    queryFn: () => {
+      const { startDate, endDate } = getPeriodDates();
+      return fetchTransactions(startDate, endDate);
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1
+  });
+
+  // Traiter les données lorsqu'elles arrivent
+  useEffect(() => {
+    if (data && data.success && data.data) {
+      // Calculer les totaux
+      let entrees = 0;
+      let sorties = 0;
+      const totalsPerCategory = {
+        'Charge du personnel': 0,
+        'Fonctionnement': 0,
+        'Investissement': 0,
+        'Économat': 0,
+        'Santé': 0
+      };
+
+      // Parcourir les transactions
+      data.data.forEach(transaction => {
+        // S'assurer que les montants sont des nombres
+        const montant = parseFloat(transaction.montant) || 0;
+          
+        if (transaction.type === 'entree') {
+          entrees += montant;
+        } else if (transaction.type === 'sortie') {
+          sorties += montant;
+
+          // Mapper la catégorie si nécessaire
+          const categorie = transaction.categorie;
+          
+          // Ajouter au total de la catégorie appropriée
+          if (categorie in totalsPerCategory) {
+            totalsPerCategory[categorie] += montant;
+          }
+        }
+      });
+
+      // Mettre à jour les états
+      setTotalEntrees(entrees);
+      setTotalSorties(sorties);
+      setCategoryTotals(totalsPerCategory);
+    }
+  }, [data]);
+
+  // Mettre à jour les dates lorsque le mois sélectionné change
+  useEffect(() => {
+    getPeriodDates();
+  }, [selectedMonth, getPeriodDates]);
+
+  const calculateMontantRepartition = (percentage) => {
+    return (totalEntrees * percentage) / 100;
+  };
+
+  const getMonthOptions = () => {
+    const options = [];
+    const currentDate = new Date();
+
+    for (let i = 0; i < 12; i++) {
+      const date = subMonths(currentDate, i);
+      const value = format(date, 'yyyy-MM');
+      const label = format(date, 'MMMM yyyy', { locale: fr });
+
+      options.push({ value, label });
+    }
+
+    return options;
+  };
+
+  const transactions = data?.data || [];
+
+  return (
+    <div className="container mx-auto py-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-2xl">Tableau de Répartition des Recettes</CardTitle>
+            <div className="w-64">
+              <Label>Période</Label>
+              <Select
+                value={selectedMonth}
+                onValueChange={(value) => {
+                  setSelectedMonth(value);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un mois" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getMonthOptions().map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-2">
+                Exercice comptable : <br />
+                <span className="text-black font-medium">
+                  du {periode.start} au {periode.end}
+                </span>
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, index) => (
+              <Card key={index} className="p-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-6 w-1/2" />
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full mb-4" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Skeleton className="h-6 w-16 mb-1" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                    <Skeleton className="h-10 w-20 rounded-md" />
+                  </div>
+                </CardContent>
+              </Card>
+              ))}
+              </div>
+          ) : error ? (
+            <div className="p-8 text-center">
+              <p className="text-red-500 mb-4">Erreur: {error.message}</p>
+              <button 
+                className="px-4 py-2 bg-primary text-white rounded-md"
+                onClick={() => refetch()}
+              >
+                Réessayer
+              </button>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M3 9h18" />
+                    <path d="M9 21V9" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Aucune transaction trouvée</h3>
+                <p className="text-gray-500 mb-6 max-w-md">
+                  Il n'y a aucune transaction enregistrée pour la période du {periode.start} au {periode.end}.
+                </p>
+                <div>
+                  <button 
+                    className="px-4 py-2 border border-gray-300 rounded-md flex items-center justify-center"
+                    onClick={() => setSelectedMonth(format(new Date(), 'yyyy-MM'))}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                      <rect width="18" height="18" x="3" y="3" rx="2" />
+                      <path d="M8 3v3" />
+                      <path d="M16 3v3" />
+                      <path d="M3 11h18" />
+                    </svg>
+                    Revenir au mois actuel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold">Total des Recettes: {totalEntrees.toLocaleString('fr-FR')} $</h3>
+                <h3 className="text-lg font-semibold">Total des Dépenses: {totalSorties.toLocaleString('fr-FR')} $</h3>
+                <h3 className={`text-lg font-semibold ${totalEntrees - totalSorties >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  Solde: {(totalEntrees - totalSorties).toLocaleString('fr-FR')} $
+                </h3>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border p-3 text-left">Rubrique</th>
+                      <th className="border p-3 text-right">Pourcentage</th>
+                      <th className="border p-3 text-right">Montant Répartition</th>
+                      <th className="border p-3 text-right">Total Dépenses</th>
+                      <th className="border p-3 text-right">Écart</th>
+                      <th className="border p-3 text-right">Utilisation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(categories).map(([category, data]) => {
+                      const montantRepartition = calculateMontantRepartition(data.pourcentage);
+                      const totalDepenses = categoryTotals[category] || 0;
+                      const ecart = montantRepartition - totalDepenses;
+                      const utilisation = montantRepartition > 0 ? (totalDepenses / montantRepartition) * 100 : 0;
+
+                      return (
+                        <tr key={category} className="hover:bg-gray-50">
+                          <td className="border p-3">{category}</td>
+                          <td className="border p-3 text-right">{data.pourcentage}%</td>
+                          <td className="border p-3 text-right">
+                            {montantRepartition.toLocaleString('fr-FR')} $
+                          </td>
+                          <td className="border p-3 text-right">
+                            {totalDepenses.toLocaleString('fr-FR')} $
+                          </td>
+                          <td className="border p-3 text-right">
+                            <span className={ecart >= 0 ? "text-green-600" : "text-red-600"}>
+                              {ecart.toLocaleString('fr-FR')} $
+                            </span>
+                          </td>
+                          <td className="border p-3 text-right">
+                            <span className={utilisation <= 100 ? "text-green-600" : "text-red-600"}>
+                              {utilisation.toFixed(2)}%
+                            </span>
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mt-1">
+                              <div 
+                                className={`h-full ${utilisation <= 100 ? 'bg-green-500' : 'bg-red-500'}`}
+                                style={{ width: `${Math.min(100, utilisation)}%` }}
+                              ></div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-100 font-semibold">
+                      <td className="border p-3">Total</td>
+                      <td className="border p-3 text-right">100%</td>
+                      <td className="border p-3 text-right">
+                        {totalEntrees.toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="border p-3 text-right">
+                        {totalSorties.toLocaleString('fr-FR')} $
+                      </td>
+                      <td className="border p-3 text-right">
+                        <span className={(totalEntrees - totalSorties) >= 0 ? "text-green-600" : "text-red-600"}>
+                          {(totalEntrees - totalSorties).toLocaleString('fr-FR')} $
+                        </span>
+                      </td>
+                      <td className="border p-3 text-right">
+                        <span className={totalEntrees > 0 && (totalSorties / totalEntrees) * 100 <= 100 ? "text-green-600" : "text-red-600"}>
+                          {totalEntrees > 0 ? ((totalSorties / totalEntrees) * 100).toFixed(2) : 0}%
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-4">Liste des transactions</h3>
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border p-3 text-left">Date</th>
+                      <th className="border p-3 text-left">Description</th>
+                      <th className="border p-3 text-left">Type</th>
+                      <th className="border p-3 text-left">Catégorie</th>
+                      <th className="border p-3 text-right">Montant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50">
+                        <td className="border p-3">{format(new Date(transaction.date), 'dd/MM/yyyy')}</td>
+                        <td className="border p-3">{transaction.description}</td>
+                        <td className="border p-3">
+                          <span className={`px-2 py-1 rounded ${
+                            transaction.type === 'entree' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {transaction.type === 'entree' ? 'Entrée' : 'Sortie'}
+                          </span>
+                        </td>
+                        <td className="border p-3">{transaction.categorie || '-'}</td>
+                        <td className="border p-3 text-right">
+                          <span className={transaction.type === 'entree' ? 'text-green-600' : 'text-red-600'}>
+                            {transaction.type === 'entree' ? '+' : '-'}{parseFloat(transaction.montant).toLocaleString('fr-FR')} $
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Exporter la page avec le Provider
+export default function RepartitionPage() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RepartitionPageContent />
+    </QueryClientProvider>
+  );
+} 
