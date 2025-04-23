@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, GraduationCap, Users, DollarSign, CheckCircle, XCircle, Search, Filter } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Users, DollarSign, CheckCircle, XCircle, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { useParams } from 'next/navigation';
@@ -28,7 +28,7 @@ export default function ClasseDetailsPage() {
   const [filteredElevesPaies, setFilteredElevesPaies] = useState([]);
   const [filteredElevesNonPaies, setFilteredElevesNonPaies] = useState([]);
   const [searchMontant, setSearchMontant] = useState('');
-  const [montantOperator, setMontantOperator] = useState('gte'); // gte = supérieur ou égal, lte = inférieur ou égal
+  const [montantOperator, setMontantOperator] = useState('gte'); 
 
   // Utiliser React Query pour récupérer les détails de la classe
   const { 
@@ -292,7 +292,7 @@ export default function ClasseDetailsPage() {
                               <TableCell className="whitespace-nowrap">
                                 {eleve.date_naissance && format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap">{eleve.contact_parent || eleve.contact_secondaire || '-'}</TableCell>
+                              <TableCell className="whitespace-nowrap">{eleve.telephone || '-'}</TableCell>
                               <TableCell className="font-medium whitespace-nowrap">
                                 {eleve.paiementsScolarite.total.toFixed(2)} $
                                 {eleve.paiementsScolarite.nbPaiements > 1 && (

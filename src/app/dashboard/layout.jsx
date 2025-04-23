@@ -12,11 +12,11 @@ import { useUser } from "@/lib/UserContext";
 
 export default function DashboardLayout({ children }) {
   const router = useRouter();
-  const { user, userProfile, role, isLoading, refetch } = useUser();
+  const { user, role, isLoading } = useUser();
+
 
   useEffect(() => {
     if (!isLoading && !user) {
-      // Si l'utilisateur n'est pas connecté et que le chargement est terminé
       router.push('/login');
     }
   }, [isLoading, user, router]);
@@ -25,7 +25,6 @@ export default function DashboardLayout({ children }) {
     try {
       await auth.signOut();
       toast.success('Déconnecté avec succès');
-      // Invalider le cache de React Query (se fera automatiquement via la redirection)
       router.push('/login');
     } catch (error) {
       toast.error("Erreur lors de la déconnexion");
@@ -33,7 +32,6 @@ export default function DashboardLayout({ children }) {
     }
   };
 
-  // Afficher un écran de chargement pendant que les données utilisateur sont récupérées
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -45,7 +43,6 @@ export default function DashboardLayout({ children }) {
     );
   }
 
-  // Afficher un message d'erreur si l'utilisateur n'est pas connecté
   if (!user || !role) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -64,14 +61,13 @@ export default function DashboardLayout({ children }) {
 
   return (
     <SidebarProvider>
-        
       <AppSidebar userRole={role} />
       <main className="min-h-screen w-full">
         <header className="sticky top-0 z-50 h-14 border-b bg-white flex items-center justify-between px-4">
           <SidebarTrigger />
           <div className="flex items-center gap-4">
             <div className="text-sm font-medium">
-              {userProfile?.nom ? `${userProfile.nom} (${role})` : role}
+              {user.nom}
             </div>
             <Button onClick={handleLogout} className="flex items-center cursor-pointer text-sm text-black font-bold bg-blue-300 hover:bg-blue-500">
               <LogOut className="h-5 w-5 mr-2" />

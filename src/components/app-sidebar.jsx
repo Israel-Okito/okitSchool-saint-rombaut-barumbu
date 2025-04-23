@@ -17,7 +17,6 @@ import {
   Wallet, 
   Users, 
   FileText, 
-  Settings, 
   Calendar,
   School,
   UserCog 
@@ -37,7 +36,6 @@ export function AppSidebar({ userRole }) {
     { title: "Personnel", href: "/dashboard/personnel", icon: UserCog },
     { title: "Paiements", href: "/dashboard/paiements", icon: Wallet },
     { title: "Année-scolaire", href: "/dashboard/settings/annees", icon: Calendar },
-    { title: "Paramètres", href: "/dashboard/settings", icon: Settings },
   ], []);
 
   // Filtrage des items selon les permissions de l'utilisateur

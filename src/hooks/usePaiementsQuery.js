@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 const fetchPaiements = async ({ page = 1, limit = 10, search = '', classeId = '', elevesIds = [], dateDebut = '', dateFin = '' }) => {
-  // Construire les paramètres de requête
+ 
   const queryParams = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString()
@@ -51,6 +51,6 @@ export function usePaiementsQuery({
     queryFn: () => fetchPaiements({ page, limit, search, classeId, elevesIds, dateDebut, dateFin }),
     enabled,
     keepPreviousData: true,
-    staleTime: 30 * 1000, // 30 secondes (les paiements changent fréquemment)
+    staleTime: 30 * 1000, 
   });
 }

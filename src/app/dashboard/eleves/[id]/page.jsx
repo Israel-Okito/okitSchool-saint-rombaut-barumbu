@@ -163,7 +163,7 @@ export default function EleveDetailPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/eleves">
@@ -176,22 +176,13 @@ export default function EleveDetailPage() {
         </div>
         
         <div className="flex gap-2">
-          {/* <Link href={`/dashboard/eleves/${id}/edit`}>
-            <Button variant="outline" size="sm">
-              <Pencil className="h-4 w-4 mr-2" />
-              Modifier
-            </Button>
-          </Link> */}
+ 
           <Link href={`/dashboard/eleves/${id}/paiements`}>
             <Button size="sm">
               <Wallet className="h-4 w-4 mr-2" />
               Historique des paiements
             </Button>
           </Link>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Supprimer
-          </Button>
         </div>
       </div>
 

@@ -103,7 +103,7 @@ export default function HistoriquePaiementsElevePage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-8 w-24" />
@@ -142,7 +142,7 @@ export default function HistoriquePaiementsElevePage() {
 
   if (!paiementsData || !paiementsData.eleve) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center p-12">
         <AlertTriangle className="h-16 w-16 text-orange-500 mb-4" />
         <h2 className="text-2xl font-bold mb-2">Élève non trouvé</h2>
         <p className="text-muted-foreground mb-6">
@@ -159,7 +159,7 @@ export default function HistoriquePaiementsElevePage() {
   const eleveName = `${eleve.prenom || ''} ${eleve.nom || ''}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href={`/dashboard/eleves/${eleve.id}`}>

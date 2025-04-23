@@ -3,12 +3,10 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// Liste des élèves avec pagination et recherche
 export async function GET(request) {
   const adminClient = await createClient();
   const searchParams = request.nextUrl.searchParams;
   
-  // Paramètres de pagination et recherche
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '10');
   const search = searchParams.get('search') || '';
@@ -16,12 +14,10 @@ export async function GET(request) {
   const offset = (page - 1) * limit;
   
   try {
-    // Construire la requête de base
     let query = adminClient
       .from('eleves')
       .select('id, nom, prenom, postnom, responsable, date_naissance, adresse, telephone, lieu_naissance, sexe, classe_id, classes(id, nom, niveau)', { count: 'exact' });
     
-    // Ajouter la recherche si un terme est fourni
     if (search) {
       query = query.or(`nom.ilike.%${search}%,prenom.ilike.%${search}%`);
     }

@@ -4,7 +4,6 @@ import { createClient } from '@/utils/supabase/client';
 // Map global pour le cache utilisateur
 const userCache = new Map();
 
-// Fonction pour enrichir les données du journal avec les noms d'utilisateurs
 const enrichJournalData = async (journalData) => {
   if (!journalData || journalData.length === 0) return journalData;
   
@@ -47,7 +46,7 @@ const enrichJournalData = async (journalData) => {
 };
 
 const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
-  // Construire les paramètres de requête
+  
   const queryParams = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString()
@@ -57,27 +56,36 @@ const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
     queryParams.append('search', search);
   }
   
-  const response = await fetch(`/api/bypass-rls/journal?${queryParams.toString()}`, {
+  const url = `/api/bypass-rls/journal?${queryParams.toString()}`;
+  
+  const response = await fetch(url, {
     cache: 'no-store'
   });
   
+  
   if (!response.ok) {
+    console.error('fetchJournal - Erreur:', response.statusText);
     throw new Error('Erreur lors de la récupération du journal');
   }
   
   const data = await response.json();
   
   if (!data.success) {
+    console.error('fetchJournal - Erreur API:', data.error);
     throw new Error(data.error);
   }
   
   // Enrichir les données avec les noms d'utilisateurs
-  data.data = await enrichJournalData(data.data);
+  const enrichedData = await enrichJournalData(data.data);
   
-  return data;
+  return {
+    ...data,
+    data: enrichedData
+  };
 };
 
 export function useJournalQuery({ page = 1, limit = 10, search = '', enabled = true }) {
+  
   const queryClient = useQueryClient();
   
   return useQuery({
@@ -85,8 +93,9 @@ export function useJournalQuery({ page = 1, limit = 10, search = '', enabled = t
     queryFn: () => fetchJournal({ page, limit, search }),
     enabled,
     keepPreviousData: true,
-    staleTime: 30 * 1000, // 30 secondes (les entrées de journal changent souvent)
+    staleTime: 30 * 1000, 
     onSuccess: (data) => {
+      console.log('useJournalQuery - Succès:', data);
       // Précharger les pages adjacentes
       if (page > 1) {
         queryClient.prefetchQuery({
@@ -104,6 +113,9 @@ export function useJournalQuery({ page = 1, limit = 10, search = '', enabled = t
           queryFn: () => fetchJournal({ page: page + 1, limit, search }),
         });
       }
+    },
+    onError: (error) => {
+      console.error('useJournalQuery - Erreur:', error);
     }
   });
 }

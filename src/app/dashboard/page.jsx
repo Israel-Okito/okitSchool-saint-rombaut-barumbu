@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  Users, School, UserCog, UserCircle, 
-  ArrowUpRight } from 'lucide-react';
+  Users, School, UserCog, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { useDashboardStatsQuery } from '@/hooks/useDashboardStatsQuery';
 import { toast } from 'sonner';
@@ -15,10 +14,8 @@ export default function DashboardPage() {
     totalEleves: 0,
     totalClasses: 0,
     totalPersonnel: 0,
-    totalUsers: 0,
   });
 
-  // Utiliser React Query pour récupérer les statistiques du dashboard
   const { 
     data: dashboardData,
     isLoading,
@@ -27,7 +24,6 @@ export default function DashboardPage() {
     isRefetching
   } = useDashboardStatsQuery();
 
-  // Mettre à jour les statistiques locales lorsque les données React Query changent
   useEffect(() => {
     if (dashboardData?.success) {
       setStats(dashboardData.stats);
@@ -42,7 +38,6 @@ export default function DashboardPage() {
     }
   }, [isError, error]);
 
-  // Déterminer si nous sommes en train de charger
   const loading = isLoading || isRefetching;
 
   return (
@@ -53,7 +48,7 @@ export default function DashboardPage() {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Statistiques élèves */}
+        
           <StatCard 
             title="Élèves" 
             value={loading ? null : stats.totalEleves} 
@@ -64,7 +59,6 @@ export default function DashboardPage() {
             loading={loading}
           />
 
-          {/* Statistiques classes */}
           <StatCard 
             title="Classes" 
             value={loading ? null : stats.totalClasses} 
@@ -75,7 +69,6 @@ export default function DashboardPage() {
             loading={loading}
           />
 
-          {/* Statistiques personnel */}
           <StatCard 
             title="Personnel" 
             value={loading ? null : stats.totalPersonnel} 
@@ -86,16 +79,6 @@ export default function DashboardPage() {
             loading={loading}
           />
 
-          {/* Statistiques utilisateurs */}
-          {/* <StatCard 
-            title="Utilisateurs" 
-            value={loading ? null : stats.totalUsers} 
-            description="Comptes actifs"
-            icon={<UserCircle size={24} className="text-purple-500" />}
-            href="/dashboard/settings/users"
-            bgColor="bg-purple-50"
-            loading={loading}
-          /> */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">

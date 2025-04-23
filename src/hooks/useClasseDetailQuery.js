@@ -17,7 +17,7 @@ export function useClasseDetailQuery(id, options = {}) {
     queryKey: ['classe', id],
     queryFn: () => fetchClasseDetail(id),
     enabled: !!id,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
     ...options
   });
 } 

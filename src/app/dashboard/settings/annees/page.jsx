@@ -27,7 +27,6 @@ export default function AnneesPage() {
   });
   const queryClient = useQueryClient();
 
-  // Utiliser React Query pour récupérer les années scolaires
   const { 
     data: anneesData,
     isLoading: isAnneesLoading,
@@ -35,19 +34,16 @@ export default function AnneesPage() {
     error: anneesError
   } = useAnneeActiveQuery();
 
-  // Mettre à jour les états locaux lorsque les données React Query changent
   useEffect(() => {
     if (anneesData?.success) {
       setAnnees(anneesData.data);
     }
   }, [anneesData]);
 
-  // Mettre à jour l'état du chargement
   useEffect(() => {
     setLoading(isAnneesLoading);
   }, [isAnneesLoading]);
 
-  // Gérer les erreurs
   useEffect(() => {
     if (isAnneesError && anneesError) {
       setError(anneesError.message);
@@ -147,7 +143,7 @@ export default function AnneesPage() {
 
   if (error) {
     return (
-      <div className="text-center py-10">
+      <div className="text-center p-10">
         <h2 className="text-xl font-semibold text-red-600">Erreur</h2>
         <p className="text-gray-600">{error}</p>
       </div>
@@ -266,13 +262,6 @@ export default function AnneesPage() {
                   >
                     Modifier
                   </Button>
-                  {/* <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(annee.id)}
-                  >
-                    Supprimer
-                  </Button> */}
                 </div>
               </div>
             </CardContent>

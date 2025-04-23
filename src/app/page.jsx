@@ -18,10 +18,10 @@ export default function Home() {
      
         <div className="md:w-1/2 space-y-6 text-white">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
-            Gérez votre établissement scolaire <span className="underline decoration-white/30">efficacement</span>
+          Avec okit-school  Gérez votre établissement scolaire <span className="underline decoration-white/30">efficacement</span>
           </h2>
           <p className="text-lg text-white/90">
-            Une plateforme tout-en-un pour la gestion scolaire moderne : suivi des élèves, gestion administrative, et communication facilitée.
+            Une plateforme tout-en-un pour la gestion scolaire moderne : gestion des élèves,  gestion des personnels, gestion administrative, gestion de la comptabilité et communication facilitée.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link

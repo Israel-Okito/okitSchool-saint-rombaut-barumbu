@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createJournalEntry, updateJournalEntry, deleteJournalEntry } from '@/actions/journal';
 import Link from 'next/link';
-import { createClient } from '@/utils/supabase/client';
 import { useAnneeActiveQuery } from '@/hooks/useAnneeActiveQuery';
 import { useJournalQuery } from '@/hooks/useJournalQuery';
 import { useRubriquesQuery } from '@/hooks/useRubriquesQuery';
@@ -31,7 +30,6 @@ export default function JournalPage() {
   const [userRole, setUserRole] = useState(null);
   const [rubriques, setRubriques] = useState([]);
   
-  // Utiliser le hook optimisé pour l'année active
   const { 
     data: anneeActiveData,
     isLoading: isAnneeActiveLoading
@@ -45,7 +43,7 @@ export default function JournalPage() {
     year: { total: 0, count: 0 }
   });
   
-  // Pagination
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const entriesPerPage = 10;
@@ -59,22 +57,22 @@ export default function JournalPage() {
     user_id: ''
   });
   
-  const supabase = createClient();
+  
   
   // Récupérer les informations utilisateur depuis le contexte global
-  const { userProfile, user } = useUser();
+  const {user, role } = useUser();
 
   // Initialiser le formulaire avec l'ID utilisateur du contexte
   useEffect(() => {
-    if (userProfile && user) {
-      setUserInfo(userProfile);
-      setUserRole(userProfile.role);
+      if (role && user) {
+      setUserInfo(user);
+      setUserRole(role);
       setFormData(prev => ({
         ...prev,
         user_id: user.id
       }));
     }
-  }, [userProfile, user]);
+  }, [role, user]);
 
   // Utiliser React Query pour récupérer les entrées du journal
   const { 
@@ -87,8 +85,9 @@ export default function JournalPage() {
     page: currentPage,
     limit: entriesPerPage,
     search: debouncedSearchTerm,
-    enabled: !!anneeActive && !isAnneeActiveLoading
+    enabled: !!anneeActiveData?.anneeActive && !isAnneeActiveLoading
   });
+  
 
   // Utiliser React Query pour récupérer les rubriques
   const {

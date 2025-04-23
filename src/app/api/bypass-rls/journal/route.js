@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
-// Réduire la durée de revalidation à 0 pour avoir des données toujours fraîches
+
 export const revalidate = 0;
 
-// Cache pour l'année active
 let cachedAnneeActive = null;
 let cacheExpiry = null;
-const CACHE_DURATION = 60 * 1000; // 1 minute en millisecondes
+const CACHE_DURATION = 60 * 1000; 
 
-// Fonction helper pour récupérer l'année scolaire active avec cache
-async function getAnneeActive(adminClient) {
-  // Utiliser la valeur en cache si elle est encore valide
+export async function getAnneeActive(adminClient) {
+  
   if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
     return cachedAnneeActive;
   }
@@ -23,7 +21,6 @@ async function getAnneeActive(adminClient) {
     .single();
   
   if (error) {
-    console.error("Erreur lors de la récupération de l'année scolaire active:", error);
     throw new Error("Erreur lors de la récupération de l'année scolaire active");
   }
   
@@ -38,52 +35,53 @@ async function getAnneeActive(adminClient) {
   return data.id;
 }
 
-// Liste des entrées du journal avec pagination et recherche
 export async function GET(request) {
   try {
+    
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
     const offset = (page - 1) * limit;
-
+    
     const adminClient = await createClient();
     
-    // Récupérer l'ID de l'année scolaire active
     const annee_scolaire_id = await getAnneeActive(adminClient);
     
-    // Construction de la requête de base
     let query = adminClient
       .from('journal_de_caisse')
       .select('id, date, description, montant, type, categorie, user_id', { count: 'exact' })
       .eq('annee_scolaire_id', annee_scolaire_id)
       .order('date', { ascending: false });
     
-    // Ajouter la recherche si un terme est fourni
     if (search) {
       query = query.or(`description.ilike.%${search}%,type.ilike.%${search}%,categorie.ilike.%${search}%`);
     }
     
-    // Appliquer la pagination
+    
     const { data, error, count } = await query.range(offset, offset + limit - 1);
 
-    if (error) throw error;
 
-    return NextResponse.json({ 
+    if (error) {
+      throw error;
+    }
+
+    const response = { 
       success: true, 
       data,
       total: count,
       page,
       limit,
       totalPages: Math.ceil(count / limit)
-    }, { 
+    };
+    
+
+    return NextResponse.json(response, { 
       headers: {
-        // Ajouter des en-têtes pour empêcher la mise en cache côté client
         'Cache-Control': 'no-store, max-age=0'
       }
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération du journal:', error);
     return NextResponse.json(
       { success: false, message: error.message },
       { status: 500 }

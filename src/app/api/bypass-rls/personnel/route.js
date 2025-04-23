@@ -3,17 +3,15 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// Liste du personnel avec pagination
 export async function GET(request) {
   try {
     const url = new URL(request.url);
     
-    // Paramètres de pagination et recherche
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const limit = parseInt(url.searchParams.get('limit') || '10', 10);
     const searchTerm = url.searchParams.get('search') || '';
     
-    // Offset pour la pagination
+
     const offset = (page - 1) * limit;
     
     const adminClient = await createClient();

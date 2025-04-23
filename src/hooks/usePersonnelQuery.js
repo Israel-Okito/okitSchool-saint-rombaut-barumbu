@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 const fetchPersonnel = async ({ page = 1, limit = 10, search = '', fonction = '' }) => {
-  // Construire les paramètres de requête
+
   const queryParams = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString()

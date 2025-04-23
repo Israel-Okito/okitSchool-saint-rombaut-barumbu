@@ -18,8 +18,8 @@ export function useRubriquesQuery(options = {}) {
   return useQuery({
     queryKey: ['rubriques'],
     queryFn: fetchRubriques,
-    staleTime: 10 * 60 * 1000, // 10 minutes (les rubriques changent très rarement)
-    cacheTime: 15 * 60 * 1000, // 15 minutes
+    staleTime: 30 * 60 * 1000,
+    cacheTime: 60 * 60 * 1000, 
     ...options
   });
 } 

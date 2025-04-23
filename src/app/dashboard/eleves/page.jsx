@@ -8,12 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Search, Trash2, Pencil, Users, GraduationCap, ChevronLeft, ChevronRight, Loader, Edit, Trash, RefreshCw, Eye } from 'lucide-react';
+import { UserPlus, Search, Trash2, Pencil, Users, GraduationCap, ChevronLeft, ChevronRight, Loader, Edit, Trash, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import Link from 'next/link';
-
 import { createEleve, updateEleve, deleteEleve } from '@/actions/eleves';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -82,7 +81,7 @@ export default function ElevesPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+      setCurrentPage(1); 
     }, 500);
     
     return () => clearTimeout(timer);
@@ -200,7 +199,7 @@ export default function ElevesPage() {
         : await createEleve(formData);
 
       if (response.success) {
-        toast.success(response.success);
+        toast.success(editing ? "L'élève a été modifié avec succès" : "L'élève a été ajouté avec succès");
         setDialogOpen(false);
         refetchEleves();
       } else {
@@ -220,7 +219,7 @@ export default function ElevesPage() {
       const response = await deleteEleve(id);
 
       if (response.success) {
-        toast.success(response.success);
+        toast.success("L'élève a été supprimé avec succès");
         refetchEleves();
       } else {
         throw new Error(response.error);

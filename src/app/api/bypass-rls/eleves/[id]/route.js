@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 export async function GET(request, context) {
   const params = await context.params;
-  const id = params.id;
+  const id = params?.id;
   
   if (!id) {
     return NextResponse.json({ 

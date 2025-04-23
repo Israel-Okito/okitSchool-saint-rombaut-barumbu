@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 5;
 
-// Fonction helper pour récupérer l'année scolaire active
-async function getAnneeActive(adminClient) {
+export async function getAnneeActive(adminClient) {
   const { data, error } = await adminClient
     .from('annee_scolaire')
     .select('id')
@@ -26,7 +25,6 @@ async function getAnneeActive(adminClient) {
 export async function GET(request) {
   try {
     const adminClient = await createClient();
-    // Récupérer les dates depuis les paramètres de requête
     const { searchParams } = new URL(request.url);
     const start = searchParams.get('start');
     const end = searchParams.get('end');

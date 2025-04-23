@@ -2,19 +2,18 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 // Routes accessibles sans connexion
-const publicPaths = ['/', '/login']
+const publicPaths = ['/', '/login', '/unauthorized']
 
 // Définir les rôles autorisés pour chaque route protégée
 const PROTECTED_ROUTES = {
-  '/dashboard': ['directeur', 'secretaire', 'comptable', 'caissier'],
-  '/dashboard/personnel': ['directeur', 'secretaire'],
-  '/dashboard/eleves': ['directeur', 'secretaire'],
-  '/dashboard/paiements': ['directeur', 'comptable', 'caissier'],
-  '/dashboard/journal': ['directeur', 'comptable', 'caissier'],
-  '/dashboard/repartition': ['directeur', 'comptable', 'caissier'],
-  '/dashboard/settings': ['directeur'],
-  '/dashboard/classes': ['directeur', 'secretaire'],
-  '/dashboard/annees': ['directeur', 'secretaire'],
+  '/dashboard': ['admin', 'directeur', 'secretaire', 'comptable', 'caissier'],
+  '/dashboard/personnel': ['admin', 'directeur', 'secretaire'],
+  '/dashboard/eleves': ['admin', 'directeur', 'secretaire'],
+  '/dashboard/paiements': ['admin', 'directeur', 'comptable', 'caissier'],
+  '/dashboard/journal': ['admin', 'directeur', 'comptable', 'caissier'],
+  '/dashboard/repartition': ['admin', 'directeur', 'comptable', 'caissier'],
+  '/dashboard/classes': ['admin', 'directeur', 'secretaire'],
+  '/dashboard/settings/annees': ['admin', 'directeur'],
 }
 
 export async function updateSession(request) {
@@ -100,7 +99,6 @@ export async function updateSession(request) {
         return NextResponse.redirect(unauthorizedUrl)
       }
     } catch (error) {
-      console.error('Erreur dans le middleware:', error)
       return NextResponse.redirect(new URL('/error', request.url))
     }
   }

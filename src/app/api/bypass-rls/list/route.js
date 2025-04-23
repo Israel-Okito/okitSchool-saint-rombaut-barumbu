@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 
-// Créer un client Supabase statique pour réutilisation
 const adminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY,
@@ -17,7 +16,7 @@ export const revalidate = 3; // Revalider le cache toutes les 3 secondes
 
 export async function GET() {
   try {
-    // Récupérer toutes les années scolaires
+    
     const { data, error } = await adminClient
       .from('annee_scolaire')
       .select('*')

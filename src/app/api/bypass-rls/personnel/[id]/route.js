@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 export async function GET(request, context) {
     const params = await context.params;
-    const id = params.id;
+    const id = params?.id;
     
     const supabase = await createClient(); 
 
@@ -21,7 +21,16 @@ export async function GET(request, context) {
  
     const { data: personnel, error } = await supabase
       .from('personnels')
-      .select('*')
+      .select(`id, 
+        nom, 
+        prenom, 
+        postnom,
+        poste, 
+        contact, 
+        adresse,
+        sexe,
+        date_naissance,
+        lieu_naissance`)
       .eq('id', id)
       .maybeSingle();
 

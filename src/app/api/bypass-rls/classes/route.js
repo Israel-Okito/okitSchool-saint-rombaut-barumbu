@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// Liste des classes avec pagination, filtrage et recherche
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,7 +14,6 @@ export async function GET(request) {
     
     const adminClient = await createClient();
     
-    // Vérifier d'abord si l'année active existe
     const { data: anneeData, error: anneeError } = await adminClient
       .from('annee_scolaire')
       .select('id')
@@ -49,10 +47,9 @@ export async function GET(request) {
       query = query.eq('niveau', niveau);
     }
     
-    // Ajouter le tri et la pagination
     query = query.order('niveau', { ascending: true }).range(offset, offset + limit - 1);
     
-    // Exécuter la requête
+    
     const { data, error, count } = await query;
 
     if (error) {

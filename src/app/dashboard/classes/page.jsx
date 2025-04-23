@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +75,7 @@ export default function ClassesPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+      setCurrentPage(1); 
     }, 300);
     
     return () => clearTimeout(timer);
@@ -170,7 +170,7 @@ export default function ClassesPage() {
         
         // Rafraîchir les données avec React Query
         if (currentPage !== 1) {
-          setCurrentPage(1); // Revenir à la première page
+          setCurrentPage(1); 
         } else {
           refetchClasses();
         }
@@ -202,8 +202,7 @@ export default function ClassesPage() {
       if (!result.success) {
         throw new Error(result.error);
       }
-      
-      // Rafraîchir les données avec React Query
+
       refetchClasses();
       toast.success('Classe supprimée avec succès');
       
@@ -246,7 +245,7 @@ export default function ClassesPage() {
 
   if (error) {
     return (
-      <div className="text-center py-10">
+      <div className="text-center p-10">
         <h2 className="text-xl font-semibold text-red-600">Erreur</h2>
         <p className="text-gray-600">{error}</p>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,28 +8,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, PlusCircle, Search, Trash2, User, Briefcase, Phone, Calendar, MapPin, ChevronLeft, ChevronRight, Clock, UserCircle, Loader } from 'lucide-react';
+import { Pencil, PlusCircle, Search, Trash2, User, Briefcase,ChevronLeft, ChevronRight, UserCircle, Loader } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { createPersonnel, updatePersonnel, deletePersonnel } from '@/actions/personnel';
-import { format, formatDistance } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { debounce } from 'lodash';
 import { createClient } from '@/utils/supabase/client';
-import { usePersonnelQuery, usePersonnelDetailQuery } from '@/hooks/usePersonnelQuery';
+import { usePersonnelQuery} from '@/hooks/usePersonnelQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Eye } from 'lucide-react';
 
-// Cache global pour les données partagées
+
 const cache = {
   userData: null,
   usersInfo: new Map()
 };
 
-// Ajouter la liste des postes disponibles
 const POSTES = [
   { value: 'enseignant', label: 'Enseignant' },
   { value: 'directeur_etudes', label: 'Directeur des études' },
@@ -42,7 +37,7 @@ const POSTES = [
 export default function PersonnelPage() {
   const queryClient = useQueryClient();
   
-  // États locaux
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState(null);
@@ -68,7 +63,6 @@ export default function PersonnelPage() {
     lieu_naissance: ''
   });
 
-  // Utiliser React Query pour récupérer le personnel avec caching optimisé
   const { 
     data: personnelData,
     isLoading: isPersonnelLoading,
@@ -80,7 +74,7 @@ export default function PersonnelPage() {
     pageSize: personnelPerPage,
     search: debouncedSearchTerm,
     enabled: true,
-    staleTime: 60 * 1000 // Considérer les données fraîches pendant 1 minute
+    staleTime: 60 * 1000 
   });
   
   // Requête pour récupérer l'utilisateur courant depuis le localStorage
@@ -95,17 +89,16 @@ export default function PersonnelPage() {
         return cache.userData;
       }
       
+
+      
       try {
-        // Récupérer depuis localStorage
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
           const userData = JSON.parse(storedUser);
-          // Mettre en cache
           cache.userData = userData;
           return userData;
         }
         
-        // Si pas dans le localStorage, essayer avec Supabase
         const supabase = createClient();
         const { data: { user }, error } = await supabase.auth.getUser();
         
@@ -121,15 +114,14 @@ export default function PersonnelPage() {
         return null;
       }
     },
-    staleTime: 30 * 60 * 1000 // 30 minutes
+    staleTime: 30 * 60 * 1000 
   });
 
-  // Debounce pour la recherche
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
-    }, 300); // Réduit à 300ms pour une meilleure réactivité
+      setCurrentPage(1); 
+    }, 300); 
     
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -200,10 +192,9 @@ export default function PersonnelPage() {
 
   const handleOpenDialog = async (p = null) => {
     if (p) {
-      // Pour l'édition, charger les détails complets via React Query au besoin
+    
       let personnelDetails = p;
       
-      // Si nous n'avons pas toutes les données du personnel, chargeons-les
       if (!p.date_naissance || !p.lieu_naissance) {
         try {
           const result = await queryClient.fetchQuery({
@@ -213,7 +204,7 @@ export default function PersonnelPage() {
               if (!response.ok) throw new Error('Erreur lors du chargement des détails');
               return response.json();
             },
-            staleTime: 5 * 60 * 1000 // 5 minutes
+            staleTime: 5 * 60 * 1000 
           });
           
           if (result.success) {
@@ -221,7 +212,6 @@ export default function PersonnelPage() {
           }
         } catch (error) {
           console.error('Erreur lors du chargement des détails:', error);
-          // Continuer avec les données partielles
         }
       }
       
@@ -304,7 +294,7 @@ export default function PersonnelPage() {
     }
   };
   
-  // Précharger les pages adjacentes quand la page actuelle change
+
   useEffect(() => {
     // Précharger la page suivante
     if (currentPage < totalPages) {
@@ -333,66 +323,8 @@ export default function PersonnelPage() {
     }
   }, [currentPage, totalPages, personnelPerPage, debouncedSearchTerm, queryClient]);
   
-  // Fonctions utilitaires pour le formatage des dates
-  const formatDateTime = (dateTimeString) => {
-    if (!dateTimeString) return 'N/A';
-    try {
-      return format(new Date(dateTimeString), 'dd MMM yyyy à HH:mm', { locale: fr });
-    } catch (error) {
-      return 'Date invalide';
-    }
-  };
-
-  const formatTimeAgo = (dateTimeString) => {
-    if (!dateTimeString) return 'N/A';
-    try {
-      return formatDistance(new Date(dateTimeString), new Date(), { addSuffix: true, locale: fr });
-    } catch (error) {
-      return 'Date invalide';
-    }
-  };
   
-  // // Afficher un chargement pendant que les données sont récupérées
-  // if (isPersonnelLoading) {
-  //   return (
-  //     <div className="p-4">
-  //       <div className="flex justify-between items-center mb-6">
-  //         <div>
-  //           <Skeleton className="h-8 w-48 mb-1" />
-  //           <Skeleton className="h-4 w-32" />
-  //         </div>
-  //         <Skeleton className="h-10 w-40" />
-  //       </div>
-        
-  //       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-  //         {[...Array(3)].map((_, i) => (
-  //           <Card key={i}>
-  //             <CardHeader className="pb-2">
-  //               <Skeleton className="h-5 w-32" />
-  //             </CardHeader>
-  //             <CardContent>
-  //               <div className="flex justify-between items-center">
-  //                 <Skeleton className="h-10 w-20" />
-  //                 <Skeleton className="h-10 w-10 rounded-full" />
-  //               </div>
-  //             </CardContent>
-  //           </Card>
-  //         ))}
-  //       </div>
-        
-  //       <Card>
-  //         <CardHeader className="pb-2">
-  //           <Skeleton className="h-6 w-36" />
-  //         </CardHeader>
-  //         <CardContent>
-  //           <Skeleton className="h-96 w-full" />
-  //         </CardContent>
-  //       </Card>
-  //     </div>
-  //   );
-  // }
   
-  // Afficher une erreur si le chargement a échoué
   if (isPersonnelError) {
     return (
       <div className="p-4 flex items-center justify-center h-[calc(100vh-200px)]">

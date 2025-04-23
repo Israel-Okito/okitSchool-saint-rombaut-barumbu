@@ -3,13 +3,11 @@
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-// Fonction helper pour récupérer l'année scolaire active - mise en cache
 let cachedAnneeActive = null;
 let cacheExpiry = null;
 const CACHE_DURATION = 60 * 1000; // 1 minute en millisecondes
 
 async function getAnneeActive() {
-  // Utiliser la valeur en cache si elle est encore valide
   if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
     return cachedAnneeActive;
   }
@@ -17,10 +15,10 @@ async function getAnneeActive() {
   const supabase = await createClient();
   
   const { data, error } = await supabase
-    .from('annee_scolaire')
-    .select('id')
-    .eq('est_active', true)
-    .single();
+  .from('annee_scolaire')
+  .select('id')
+  .eq('est_active', true)
+  .single();
   
   if (error) throw new Error("Erreur lors de la récupération de l'année scolaire active");
   if (!data) throw new Error("Aucune année scolaire active n'a été trouvée");
@@ -36,7 +34,6 @@ export async function createJournalEntry(formData) {
   const supabase = await createClient();
   
   try {
-    // Récupérer l'année scolaire active
     const annee_scolaire_id = await getAnneeActive();
     
     // Mapper les valeurs frontend vers les valeurs d'ENUM de la base de données
@@ -175,19 +172,19 @@ export async function deleteJournalEntry(id) {
   }
 }
 
-// Récupérer l'historique des suppressions avec optimisation de la requête
+
 export async function getJournalDeletedHistory(offset = 0, limit = 10, searchTerm = '') {
   const supabase = await createClient();
   
   try {
     // Récupérer l'année scolaire active
-    const annee_scolaire_id = await getAnneeActive();
+    // const annee_scolaire_id = await getAnneeActive();
     
     // Construire la requête de base avec les colonnes nécessaires et pagination
     let query = supabase
       .from('journal_de_caisse_deleted')
       .select('id, original_id, date, description, montant, type, categorie, deleted_at', { count: 'exact' })
-      .eq('annee_scolaire_id', annee_scolaire_id)
+      // .eq('annee_scolaire_id', annee_scolaire_id)
       .order('deleted_at', { ascending: false });
     
     // Ajouter un filtre de recherche si un terme est fourni

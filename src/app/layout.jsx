@@ -4,14 +4,15 @@ import { Toaster } from '@/components/ui/sonner';
 import { UserProvider } from '@/lib/UserContext';
 import { QueryProvider } from '@/lib/QueryProvider';
 
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
   title: 'Saint Rombaut - Application de Gestion Scolaire',
-  description: 'Système de gestion pour l\'École Saint Rombaut, intégrant la gestion des élèves, du personnel, des finances et plus encore.',
+  description: "Système de gestion pour l'École Saint Rombaut, intégrant la gestion des élèves, du personnel, des finances et plus encore.",
 };
 
-// Contrôler le cache du SSR
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 

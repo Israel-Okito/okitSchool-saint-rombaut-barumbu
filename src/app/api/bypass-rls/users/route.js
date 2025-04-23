@@ -10,7 +10,7 @@ export async function GET(request) {
     
     const { data, error } = await adminClient
       .from('users')
-      .select('*')
+      .select('id, role, nom, email') 
       .order('email', { ascending: true });
 
     if (error) {

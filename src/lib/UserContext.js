@@ -64,9 +64,8 @@ export function UserProvider({ children }) {
           user: {
             id: user.id,
             email: user.email,
-            name: user.name,
+            nom: user.nom,
           },
-          userProfile: user.profile || null,
           role: user.role || null,
         };
 
@@ -94,9 +93,8 @@ export function UserProvider({ children }) {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
+          nom: user.nom,
         },
-        userProfile: user.profile || null,
         role: user.role || null,
       };
       setUserData(userData);
@@ -111,7 +109,6 @@ export function UserProvider({ children }) {
 
   const value = {
     user: userData?.user || null,
-    userProfile: userData?.userProfile || null,
     role: userData?.role || null,
     isLoading,
     error,

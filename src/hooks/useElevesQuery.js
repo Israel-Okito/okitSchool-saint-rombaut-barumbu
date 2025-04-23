@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 const fetchEleves = async ({ page = 1, limit = 10, search = '', classeId = '' }) => {
-  // Construire les paramètres de requête
+  
   const queryParams = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString()

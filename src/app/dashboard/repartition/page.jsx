@@ -5,12 +5,10 @@ import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-quer
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { format, endOfMonth, subMonths, startOfMonth } from 'date-fns';
+import { format, endOfMonth, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Fonction pour récupérer les transactions
 const fetchTransactions = async (startDate, endDate) => {
   const formattedStartDate = format(startDate, 'yyyy-MM-dd');
   const formattedEndDate = format(endDate, 'yyyy-MM-dd');
@@ -32,7 +30,6 @@ const fetchTransactions = async (startDate, endDate) => {
   }
 };
 
-// Créer un client React Query pour cette page
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -48,7 +45,6 @@ function RepartitionPageContent() {
   const [categoryTotals, setCategoryTotals] = useState({});
   const [periode, setPeriode] = useState({ start: '', end: '' });
 
-  // Les catégories avec leurs pourcentages préétablis
   const categories = {
     'Charge du personnel': { pourcentage: 60 },
     'Fonctionnement': { pourcentage: 9 },
@@ -57,13 +53,11 @@ function RepartitionPageContent() {
     'Santé': { pourcentage: 3 }
   };
 
-  // Préparer les dates pour la requête
   const getPeriodDates = useCallback(() => {
     const [year, month] = selectedMonth.split('-');
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
     const endDate = endOfMonth(startDate);
 
-    // Mettre à jour la période pour l'affichage
     setPeriode({
       start: format(startDate, 'dd MMMM yyyy', { locale: fr }),
       end: format(endDate, 'dd MMMM yyyy', { locale: fr })
@@ -72,21 +66,18 @@ function RepartitionPageContent() {
     return { startDate, endDate };
   }, [selectedMonth]);
 
-  // Utiliser TanStack Query pour charger les données
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['transactions', selectedMonth],
     queryFn: () => {
       const { startDate, endDate } = getPeriodDates();
       return fetchTransactions(startDate, endDate);
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5, 
     retry: 1
   });
 
-  // Traiter les données lorsqu'elles arrivent
   useEffect(() => {
     if (data && data.success && data.data) {
-      // Calculer les totaux
       let entrees = 0;
       let sorties = 0;
       const totalsPerCategory = {
@@ -97,9 +88,7 @@ function RepartitionPageContent() {
         'Santé': 0
       };
 
-      // Parcourir les transactions
       data.data.forEach(transaction => {
-        // S'assurer que les montants sont des nombres
         const montant = parseFloat(transaction.montant) || 0;
           
         if (transaction.type === 'entree') {
@@ -107,24 +96,20 @@ function RepartitionPageContent() {
         } else if (transaction.type === 'sortie') {
           sorties += montant;
 
-          // Mapper la catégorie si nécessaire
           const categorie = transaction.categorie;
           
-          // Ajouter au total de la catégorie appropriée
           if (categorie in totalsPerCategory) {
             totalsPerCategory[categorie] += montant;
           }
         }
       });
 
-      // Mettre à jour les états
       setTotalEntrees(entrees);
       setTotalSorties(sorties);
       setCategoryTotals(totalsPerCategory);
     }
   }, [data]);
 
-  // Mettre à jour les dates lorsque le mois sélectionné change
   useEffect(() => {
     getPeriodDates();
   }, [selectedMonth, getPeriodDates]);
@@ -151,7 +136,7 @@ function RepartitionPageContent() {
   const transactions = data?.data || [];
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto p-6">
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">

@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
+import { revalidatePath } from 'next/cache';
 
 export async function createPersonnel(formData) {
   const supabase = await createClient();
@@ -44,6 +45,8 @@ export async function createPersonnel(formData) {
       if (relationError) throw relationError;
     }
 
+    revalidatePath('/dashboard/personnel');
+
     return { success: true, data: personnelData };
   } catch (error) {
     console.error('Erreur lors de la création du personnel:', error);
@@ -55,7 +58,6 @@ export async function updatePersonnel(formData) {
   const supabase = await createClient();
   
   try {
-    // Construction des données à mettre à jour
     const updateData = {
       nom: formData.nom,
       prenom: formData.prenom,
@@ -81,6 +83,8 @@ export async function updatePersonnel(formData) {
       .single();
 
     if (error) throw error;
+
+    revalidatePath('/dashboard/personnel');
 
     return { success: true, data };
   } catch (error) {
@@ -130,6 +134,7 @@ export async function deletePersonnel(id, forceCascade = false) {
 
     if (error) throw error;
 
+   revalidatePath('/dashboard/personnel');
     return { 
       success: true,
       message: forceCascade && classesData?.length > 0 

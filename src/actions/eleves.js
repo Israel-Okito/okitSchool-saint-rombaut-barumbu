@@ -7,7 +7,6 @@ export async function createEleve(formData) {
   const supabase = await createClient();
   
   try {
-    // Récupérer l'année scolaire active
     const { data: anneeActive, error: anneeError } = await supabase
       .from('annee_scolaire')
       .select('id')

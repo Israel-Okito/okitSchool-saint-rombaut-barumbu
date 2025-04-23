@@ -1,16 +1,14 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
-// Options de cache pour les requêtes GET
+
 export const revalidate = 5;
 
 export const dynamic = 'force-dynamic';
 
-// Logs de la structure de table pour le débogage
 export async function GET(request) {
   try {
     const adminClient = await createClient();
-    // Continuer avec la requête normale
     const { data, error } = await adminClient
       .from('paiements_eleves')
       .select(`

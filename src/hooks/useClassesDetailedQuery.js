@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 const fetchClasses = async ({ page = 1, limit = 10, search = '', niveau = '' }) => {
-  // Construire les paramètres de requête
+ 
   const queryParams = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString()
@@ -30,6 +30,6 @@ export function useClassesDetailedQuery({ page = 1, limit = 10, search = '', niv
     queryFn: () => fetchClasses({ page, limit, search, niveau }),
     enabled,
     keepPreviousData: true,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000, 
   });
 }
