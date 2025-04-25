@@ -19,6 +19,9 @@ import {
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+
+
+
 export default function PersonnelDetailPage() {
   const params = useParams();
   const id = params?.id;

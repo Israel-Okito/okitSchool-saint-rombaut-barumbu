@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useClassesDetailedQuery } from '@/hooks/useClassesDetailedQuery';
 import { usePersonnelQuery } from '@/hooks/usePersonnelQuery';
 
+
 export default function ClassesPage() {
   const [classes, setClasses] = useState([]);
   const [personnel, setPersonnel] = useState([]);

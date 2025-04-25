@@ -3,6 +3,36 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+let cachedAnneeActive = null;
+let cacheExpiry = null;
+const CACHE_DURATION = 60 * 1000; 
+
+
+async function getAnneeActive(adminClient) {
+  if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
+    return cachedAnneeActive;
+  }
+  
+  const { data, error } = await adminClient
+    .from('annee_scolaire')
+    .select('id')
+    .eq('est_active', true)
+    .single();
+  
+  if (error) {
+    throw new Error("Erreur lors de la récupération de l'année scolaire active");
+  }
+  
+  if (!data) {
+    throw new Error("Aucune année scolaire active n'a été trouvée");
+  }
+  
+  cachedAnneeActive = data.id;
+  cacheExpiry = Date.now() + CACHE_DURATION;
+  
+  return data.id;
+}
+
 export async function GET(request) {
   try {
     const url = new URL(request.url);
@@ -11,11 +41,13 @@ export async function GET(request) {
     const limit = parseInt(url.searchParams.get('limit') || '10', 10);
     const searchTerm = url.searchParams.get('search') || '';
     
-
     const offset = (page - 1) * limit;
-    
+
     const adminClient = await createClient();
+
     
+    const annee_scolaire_id = await getAnneeActive(adminClient);
+
     let query = adminClient
       .from('personnels')
       .select(`
@@ -31,7 +63,8 @@ export async function GET(request) {
         lieu_naissance,
         created_at,
         users:user_id(id, email, role)
-      `, { count: 'exact' });
+      `, { count: 'exact' })
+      .eq('annee_scolaire_id', annee_scolaire_id)
       
     // Appliquer le filtre de recherche si présent
     if (searchTerm) {

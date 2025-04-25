@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useParams } from 'next/navigation';
 import { useClasseDetailQuery } from '@/hooks/useClasseDetailQuery';
 
+
 export default function ClasseDetailsPage() {
   const params = useParams();
   const id = params?.id;

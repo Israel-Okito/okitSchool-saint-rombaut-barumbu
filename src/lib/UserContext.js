@@ -53,28 +53,63 @@ export function UserProvider({ children }) {
 
     const fetchUser = async () => {
       try {
+        // Nettoyer le localStorage pour éviter les conflits
+        localStorage.removeItem('userData');
+        
         const response = await fetch('/api/bypass-rls/users');
         if (!response.ok) throw new Error('Erreur de récupération');
 
         const data = await response.json();
         if (!data?.data?.[0]) throw new Error('Données utilisateur invalides');
 
-        const user = data.data[0];
+        // Récupérer l'auth ID actuel pour trouver l'utilisateur correspondant
+        const supabase = supabaseContext;
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (!authUser) throw new Error('Utilisateur non authentifié');
+
+        // Trouver l'utilisateur correspondant à l'ID de l'authentification
+        const user = data.data.find(u => u.id === authUser.id) || data.data[0];
+     
+        // Récupérer éventuellement le rôle du localStorage pour des vérifications
+        const storedRole = localStorage.getItem('user_role');
+       
         const formatted = {
           user: {
             id: user.id,
             email: user.email,
             nom: user.nom,
           },
+          // Utiliser le rôle de l'utilisateur trouvé
           role: user.role || null,
         };
+        
 
-        setUserData(formatted);
+        // Mettre à jour tous les emplacements de stockage pour être cohérent
         localStorage.setItem('userData', JSON.stringify(formatted));
+        localStorage.setItem('user_role', formatted.role);
+        localStorage.setItem('user_name', user.nom);
+        
+        setUserData(formatted);
       } catch (err) {
         setError(err.message);
-        const cached = localStorage.getItem('userData');
-        if (cached) setUserData(JSON.parse(cached));
+        // En cas d'erreur, utiliser le localStorage mais en privilégiant user_role si disponible
+        try {
+          const cached = localStorage.getItem('userData');
+          if (cached) {
+            const parsedData = JSON.parse(cached);
+            // Vérifier si user_role existe et mettre à jour le rôle si nécessaire
+            const storedRole = localStorage.getItem('user_role');
+            if (storedRole && parsedData.role !== storedRole) {
+              parsedData.role = storedRole;
+              // Synchroniser userData avec user_role
+              localStorage.setItem('userData', JSON.stringify(parsedData));
+            }
+            setUserData(parsedData);
+          }
+        } catch (parseError) {
+          console.error('Erreur lors du parsing des données du cache:', parseError);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -86,9 +121,21 @@ export function UserProvider({ children }) {
   const refetch = async () => {
     setIsLoading(true);
     try {
+      // Nettoyer le localStorage pour éviter les conflits
+      localStorage.removeItem('userData');
+      
       const response = await fetch('/api/bypass-rls/users');
       const data = await response.json();
-      const user = data.data[0];
+      
+      // Récupérer l'auth ID actuel pour trouver l'utilisateur correspondant
+      const supabase = supabaseContext;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (!authUser) throw new Error('Utilisateur non authentifié');
+
+      // Trouver l'utilisateur correspondant à l'ID de l'authentification
+      const user = data.data.find(u => u.id === authUser.id) || data.data[0];
+      
       const userData = {
         user: {
           id: user.id,
@@ -97,8 +144,13 @@ export function UserProvider({ children }) {
         },
         role: user.role || null,
       };
-      setUserData(userData);
+      
+      // Mettre à jour tous les emplacements de stockage
       localStorage.setItem('userData', JSON.stringify(userData));
+      localStorage.setItem('user_role', userData.role);
+      localStorage.setItem('user_name', user.nom);
+      
+      setUserData(userData);
       setError(null);
     } catch (err) {
       setError(err.message);

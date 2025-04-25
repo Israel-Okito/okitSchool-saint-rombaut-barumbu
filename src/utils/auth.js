@@ -1,4 +1,3 @@
-
 import { createClient } from "./supabase/client";
 import { AuthSessionMissingError } from '@supabase/supabase-js';
 
@@ -62,6 +61,11 @@ export const auth = {
    */
   async signIn(email, password) {
     try {
+      // Nettoyer le localStorage à la connexion pour éviter les conflits
+      localStorage.removeItem('userData');
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('user_name');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -72,10 +76,22 @@ export const auth = {
       if (data.user) {
         const details = await captureUserDetails();
         
-        // Stockage des infos en localStorage
+        // Stockage des infos en localStorage de manière cohérente
         if (details) {
+          // Stocker les données de manière cohérente
+          const userData = {
+            user: {
+              id: details.id,
+              email: details.email,
+              nom: details.nom,
+            },
+            role: details.role || null,
+          };
+          
+          localStorage.setItem('userData', JSON.stringify(userData));
           localStorage.setItem('user_role', details.role);
           localStorage.setItem('user_name', details.nom);
+          
           return { user: data.user, details };
         }
       }
@@ -90,7 +106,8 @@ export const auth = {
 
   async signOut() {
     try {
-  
+      // Nettoyer tout le localStorage lié à l'utilisateur
+      localStorage.removeItem('userData');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_name');
       

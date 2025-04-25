@@ -21,11 +21,53 @@ import {
   School,
   UserCog 
 } from "lucide-react"; 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ROUTE_ACCESS_MAP } from "@/lib/routeAccessMap";
 
 export function AppSidebar({ userRole }) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  const [currentRole, setCurrentRole] = useState(userRole);
+  
+  // Force le remontage du composant si le rôle change
+  useEffect(() => {
+    if (userRole !== currentRole) {
+      setMounted(false);
+      // Petit délai pour éviter des rendus trop rapides
+      setTimeout(() => {
+        setCurrentRole(userRole);
+        setMounted(true);
+      }, 50);
+    } else if (!mounted) {
+      setMounted(true);
+    }
+  }, [userRole, currentRole, mounted]);
+  
+  // Nettoyer le localStorage pour s'assurer d'avoir les données les plus récentes
+  useEffect(() => {
+    // Ce bloc ne s'exécute qu'une fois au montage du composant dans le navigateur
+    const storedRole = localStorage.getItem('user_role');
+    const userData = localStorage.getItem('userData');
+    
+    // Si les deux existent et sont différents, utiliser user_role comme source de vérité
+    if (storedRole && userData) {
+      try {
+        const parsedData = JSON.parse(userData);
+        if (parsedData.role !== storedRole) {
+          // Mettre à jour userData avec le rôle correct
+          parsedData.role = storedRole;
+          localStorage.setItem('userData', JSON.stringify(parsedData));
+          // Forcer un rechargement pour prendre en compte le changement
+          if (!mounted) {
+            setMounted(true);
+          }
+        }
+      } catch (e) {
+        console.error("Erreur lors de la vérification du localStorage:", e);
+      }
+    }
+  }, [mounted]);
+  
 
   const allMenuItems = useMemo(() => [
     { title: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
@@ -42,15 +84,25 @@ export function AppSidebar({ userRole }) {
   const visibleMenuItems = useMemo(() => {
     if (!userRole) return [];
     
-    return allMenuItems.filter(item => {
+    
+    // Convertir le rôle en minuscules pour éviter les problèmes de casse
+    const normalizedRole = typeof userRole === 'string' ? userRole.toLowerCase() : userRole;
+    
+    
+    const filteredItems = allMenuItems.filter(item => {
       // Chercher dans ROUTE_ACCESS_MAP si l'utilisateur a accès à cette route
-      const hasAccess = ROUTE_ACCESS_MAP[item.href]?.includes(userRole);
+      // Vérifier le rôle en ignorant la casse
+      const hasAccess = ROUTE_ACCESS_MAP[item.href]?.some(role => 
+        role.toLowerCase() === normalizedRole
+      );
       return hasAccess;
     });
+    
+    return filteredItems;
   }, [allMenuItems, userRole]);
 
  
-  if (userRole === null) {
+  if (userRole === null || !mounted) {
     return (
       <Sidebar>
         <SidebarContent>

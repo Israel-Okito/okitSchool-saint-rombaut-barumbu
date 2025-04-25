@@ -19,6 +19,7 @@ import { fr } from 'date-fns/locale';
 import { useElevesQuery } from '@/hooks/useElevesQuery';
 import { useClassesQuery } from '@/hooks/useClassesQuery';
 
+
 export default function ElevesPage() {
   const [eleves, setEleves] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -37,6 +38,8 @@ export default function ElevesPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEleves, setTotalEleves] = useState(0);
+  const [errors, setErrors] = useState({});
+
   const elevesPerPage = 10;
   
   const [stats, setStats] = useState({
@@ -191,13 +194,43 @@ export default function ElevesPage() {
     setDialogOpen(true);
   };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   try {
+  //     const response = editing 
+  //       ? await updateEleve(formData)
+  //       : await createEleve(formData);
+
+  //     if (response.success) {
+  //       toast.success(editing ? "L'élève a été modifié avec succès" : "L'élève a été ajouté avec succès");
+  //       setDialogOpen(false);
+  //       refetchEleves();
+  //     } else {
+  //       throw new Error(response.error);
+  //     }
+  //   } catch (error) {
+  //     toast.error(error);
+  //   }
+  // };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+  
+    const newErrors = {};
+    if (!formData.classe_id) {
+      newErrors.classe_id = "Veuillez sélectionner une classe.";
+    }
+  
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+  
     try {
       const response = editing 
         ? await updateEleve(formData)
         : await createEleve(formData);
-
+  
       if (response.success) {
         toast.success(editing ? "L'élève a été modifié avec succès" : "L'élève a été ajouté avec succès");
         setDialogOpen(false);
@@ -206,9 +239,10 @@ export default function ElevesPage() {
         throw new Error(response.error);
       }
     } catch (error) {
-      toast.error(error);
+      toast.error(error.message);
     }
   };
+  
 
   const handleDelete = async (id) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet élève ?')) {
@@ -352,18 +386,15 @@ export default function ElevesPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <Table>
+              <div className=" w-full overflow-x-auto ">
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nom</TableHead>
                       <TableHead>Prénom</TableHead>
                       <TableHead>Postnom</TableHead>
-                      <TableHead>Date de naissance</TableHead>
                       <TableHead>Classe</TableHead>
                       <TableHead>Sexe</TableHead>
-                      <TableHead>Adresse</TableHead>
-                      <TableHead>Responsable</TableHead>
                       <TableHead>Téléphone</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -398,11 +429,7 @@ export default function ElevesPage() {
                           </TableCell>
                           <TableCell>{eleve.prenom}</TableCell>
                           <TableCell>{eleve.postnom}</TableCell>
-                          <TableCell className="break-words max-w-[250px] whitespace-pre-line">
-                            Né(e) le{' '}
-                            {eleve.date_naissance && format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}{' '}
-                            à {eleve.lieu_naissance}
-                          </TableCell>
+                        
 
                           <TableCell>
                           <Badge variant="outline">{eleve.classes?.nom || "Non assigné"}</Badge>
@@ -410,10 +437,7 @@ export default function ElevesPage() {
                           <TableCell>
                             {eleve.sexe === 'M' ? 'Masculin' : 'Féminin'}
                           </TableCell>
-                          <TableCell className="break-words max-w-[150px] sm:max-w-[200px] md:max-w-[300px] whitespace-pre-line">
-                            {eleve.adresse}
-                         </TableCell>
-                          <TableCell>{eleve.responsable}</TableCell>
+                       
                           <TableCell>{eleve.telephone}</TableCell>
                         
                           <TableCell className="text-right">
@@ -495,7 +519,7 @@ export default function ElevesPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md overflow-auto h-full max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>{editing ? 'Modifier un élève' : 'Ajouter un élève'}</DialogTitle>
             <DialogDescription>
@@ -582,26 +606,36 @@ export default function ElevesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="classe_id">Classe <span className="text-red-500">*</span></Label>
-                  <Select
-                    value={formData.classe_id}
-                    onValueChange={(value) => setFormData({ ...formData, classe_id: value })}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une classe">
-                        {formData.classe_id ? classes.find(c => c.id === parseInt(formData.classe_id))?.nom : "Sélectionner une classe"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((classe) => (
-                        <SelectItem key={classe.id} value={classe.id.toString()}>
-                          {classe.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+  <Label htmlFor="classe_id">
+    Classe <span className="text-red-500">*</span>
+  </Label>
+  <Select
+    value={formData.classe_id}
+    onValueChange={(value) => {
+      setFormData({ ...formData, classe_id: value });
+      setErrors(prev => ({ ...prev, classe_id: undefined })); // efface l'erreur si corrigé
+    }}
+  >
+    <SelectTrigger className={errors.classe_id ? "border-red-500" : ""}>
+      <SelectValue placeholder="Sélectionner une classe">
+        {formData.classe_id 
+          ? classes.find(c => c.id === parseInt(formData.classe_id))?.nom 
+          : "Sélectionner une classe"}
+      </SelectValue>
+    </SelectTrigger>
+    <SelectContent>
+      {classes.map((classe) => (
+        <SelectItem key={classe.id} value={classe.id.toString()}>
+          {classe.nom}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+  {errors.classe_id && (
+    <p className="text-sm text-red-500">{errors.classe_id}</p>
+  )}
+</div>
+
               </div>
 
               <div className="space-y-2">

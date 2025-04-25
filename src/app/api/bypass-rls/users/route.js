@@ -1,8 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-  export const revalidate = 5;
-
+export const revalidate = 5;
 
 export async function GET(request) {
   try {
@@ -14,11 +13,13 @@ export async function GET(request) {
       .order('email', { ascending: true });
 
     if (error) {
+      console.error("Erreur lors de la récupération des utilisateurs:", error);
       return NextResponse.json({ 
         success: false, 
         error: "Impossible de récupérer les utilisateurs: " + error.message
       });
     }
+    
 
     return NextResponse.json({ 
       success: true, 
@@ -29,6 +30,7 @@ export async function GET(request) {
       }
     });
   } catch (error) {
+    console.error("Erreur générale lors de la récupération des utilisateurs:", error);
     return NextResponse.json({ 
       success: false, 
       error: error.message 

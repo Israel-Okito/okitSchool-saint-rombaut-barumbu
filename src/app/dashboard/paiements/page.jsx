@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, PlusCircle, Search, Trash2, Wallet, BookOpen, Receipt, DollarSign } from 'lucide-react';
+import { Pencil, PlusCircle, Search, Trash2, Wallet, BookOpen, Receipt, DollarSign, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createPaiement, updatePaiement, deletePaiement } from '@/actions/paiements';
@@ -16,14 +16,28 @@ import Link from 'next/link';
 import { Link2 } from 'lucide-react';
 import { usePaiementsQuery } from '@/hooks/usePaiementsQuery';
 import { useQuery } from '@tanstack/react-query';
+import { useUser } from '@/lib/UserContext';
+import { createClient } from '@/utils/supabase/client';
+
+
+// Map pour le cache utilisateur
+const userCache = new Map();
 
 // Cache pour stocker les données globales
 const cache = {
-  eleves: null,
-  userInfo: null
+  eleves: null
 };
 
 export default function PaiementsPage() {
+  // Utiliser le hook useUser pour obtenir les informations utilisateur
+  const { user, role  } = useUser();
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPaiements, setTotalPaiements] = useState(0);
+  const paiementsPerPage = 10;
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
   // Utiliser le hook optimisé pour les paiements
   const { 
     data: paiementsData,
@@ -31,7 +45,31 @@ export default function PaiementsPage() {
     error: paiementsError,
     refetch: refetchPaiements
   } = usePaiementsQuery({
-    limit: 100 // Charger plus de paiements à la fois
+    page: currentPage,
+    limit: paiementsPerPage,
+    search: debouncedSearchTerm
+  });
+  
+  // Query to get total stats for all paiements (not paginated)
+  const { 
+    data: globalStatsData,
+    isLoading: isStatsLoading,
+    refetch: refetchStats
+  } = useQuery({
+    queryKey: ['paiements-stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/bypass-rls/paiements?limit=1&for_stats=true', {
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des statistiques');
+      }
+      
+      return response.json();
+    },
+    staleTime: 60 * 1000, // 1 minute
+    refetchOnWindowFocus: false
   });
   
   // Requête pour les élèves avec mise en cache
@@ -68,55 +106,6 @@ export default function PaiementsPage() {
     staleTime: 10 * 60 * 1000, // Les données restent fraîches pendant 10 minutes
     cacheTime: 60 * 60 * 1000, // Garder en cache pendant 1 heure
   });
-  
-  // Requête pour les informations utilisateur avec mise en cache
-  const {
-    data: userData,
-    isLoading: userLoading
-  } = useQuery({
-    queryKey: ['user-info'],
-    queryFn: async () => {
-      // Vérifier si les données sont déjà en cache
-      if (cache.userInfo) {
-        return cache.userInfo;
-      }
-      
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser);
-          cache.userInfo = { data: userData, success: true };
-          return cache.userInfo;
-        } catch (e) {
-          console.error('Erreur de parsing des données utilisateur', e);
-        }
-      }
-      
-      // Si pas en cache, charger depuis l'API
-      const userId = localStorage.getItem('userId') || 
-                    (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).id : null);
-      
-      if (!userId) {
-        return { success: false, error: 'Utilisateur non connecté' };
-      }
-      
-      const response = await fetch(`/api/bypass-rls/users?id=${userId}`, {
-        cache: 'force-cache'
-      });
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Erreur lors du chargement des informations utilisateur');
-      }
-      
-      // Mettre en cache les résultats
-      cache.userInfo = data;
-      return data;
-    },
-    staleTime: 30 * 60 * 1000, // Les données restent fraîches pendant 30 minutes
-    cacheTime: 60 * 60 * 1000, // Garder en cache pendant 1 heure
-  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -126,6 +115,9 @@ export default function PaiementsPage() {
   const [filteredPaiements, setFilteredPaiements] = useState([]);
   const [eleveSearchTerm, setEleveSearchTerm] = useState('');
   const [filteredEleves, setFilteredEleves] = useState([]);
+  const [userNames, setUserNames] = useState({});
+  const [userRole, setUserRole] = useState(null);
+
   const [stats, setStats] = useState({
     total: 0,
     count: 0,
@@ -143,15 +135,104 @@ export default function PaiementsPage() {
     montant: '',
     type: '',
     description: '',
+    user_id: ''
   });
 
-  // Mise à jour des données filtrées et statistiques quand les données changent
+
+  // Debounce du terme de recherche
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Initialiser le formulaire avec l'ID utilisateur du contexte
+  useEffect(() => {
+    if (role &&user) {
+      setUserRole(role);
+      setFormData(prev => ({
+        ...prev,
+        user_id: user.id
+      }));
+    }
+  }, [role, user]);
+
+  // Fonction pour récupérer les noms d'utilisateur
+  const fetchUserNames = useCallback(async (paiements) => {
+    if (!paiements || paiements.length === 0) return;
+    
+    const supabase = createClient();
+    
+    // Extraire tous les user_ids uniques qui ne sont pas déjà dans le cache
+    const userIds = [...new Set(
+      paiements
+        .filter(p => p.user_id && !userCache.has(p.user_id))
+        .map(p => p.user_id)
+    )];
+    
+    // Si on a des IDs non mis en cache, on les récupère
+    if (userIds.length > 0) {
+      try {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, nom')
+          .in('id', userIds);
+        
+        if (!usersError && usersData) {
+          // Mettre à jour le cache global
+          const newUserNames = {...userNames};
+          
+          usersData.forEach(user => {
+            userCache.set(user.id, user.nom);
+            newUserNames[user.id] = user.nom;
+          });
+          
+          setUserNames(newUserNames);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des noms d\'utilisateurs:', error);
+      }
+    } else {
+      // Utiliser le cache pour les IDs déjà connus
+      const newUserNames = {...userNames};
+      
+      paiements.forEach(p => {
+        if (p.user_id && userCache.has(p.user_id) && !newUserNames[p.user_id]) {
+          newUserNames[p.user_id] = userCache.get(p.user_id);
+        }
+      });
+      
+      if (Object.keys(newUserNames).length > Object.keys(userNames).length) {
+        setUserNames(newUserNames);
+      }
+    }
+  }, [userNames]);
+
+  // Mise à jour des données filtrées quand les données changent
   useEffect(() => {
     if (paiementsData?.data) {
       filterPaiements();
-      calculateStats(paiementsData.data);
+      fetchUserNames(paiementsData.data);
+      
+      // Mettre à jour le total des paiements pour la pagination
+      if (paiementsData.total) {
+        setTotalPaiements(paiementsData.total);
+      }
     }
-  }, [paiementsData, searchTerm, searchMontant, elevesData]);
+  }, [paiementsData, searchTerm, searchMontant, elevesData, fetchUserNames]);
+  
+  // Mise à jour des statistiques globales
+  useEffect(() => {
+    if (globalStatsData?.stats) {
+      setStats(globalStatsData.stats);
+    } else if (globalStatsData?.data) {
+      // Fallback au cas où les stats ne sont pas directement fournies
+      calculateStats(globalStatsData.data, globalStatsData.total);
+    }
+  }, [globalStatsData]);
 
   // Fonction de filtrage des paiements
   const filterPaiements = useCallback(() => {
@@ -161,7 +242,8 @@ export default function PaiementsPage() {
     const eleves = elevesData?.data || [];
       
     // Filtre par texte (nom de l'élève, type, description)
-    if (searchTerm) {
+    if (searchTerm && !debouncedSearchTerm) {
+      // Filtrer localement seulement si le terme de recherche n'est pas encore débounced
       result = result.filter(
         paiement => {
           const eleve = eleves.find(e => e.id === paiement.eleve_id);
@@ -185,7 +267,7 @@ export default function PaiementsPage() {
     }
     
     setFilteredPaiements(result);
-  }, [paiementsData, elevesData, searchTerm, searchMontant]);
+  }, [paiementsData, elevesData, searchTerm, debouncedSearchTerm, searchMontant]);
 
   // Filtrer les élèves pour la recherche dans le formulaire
   useEffect(() => {
@@ -200,10 +282,10 @@ export default function PaiementsPage() {
     }
   }, [eleveSearchTerm, elevesData]);
 
-  const calculateStats = useCallback((data) => {
+  const calculateStats = useCallback((data, total) => {
     const newStats = {
-      total: 0,
-      count: 0,
+      total: total || 0,
+      count: data.length,
       parType: {
         scolarite: 0,
         fraisdivers: 0,
@@ -215,7 +297,6 @@ export default function PaiementsPage() {
     data.forEach(paiement => {
       const montant = parseFloat(paiement.montant) || 0;
       newStats.total += montant;
-      newStats.count++;
       
       // Convertir le type en minuscules et enlever les espaces
       const typeKey = paiement.type?.toLowerCase().replace(/\s+/g, '') || 'autres';
@@ -252,6 +333,7 @@ export default function PaiementsPage() {
       montant: '',
       type: '',
       description: '',
+      user_id: user ? user.id : ''
     });
     setIsEditing(false);
     setSelectedPaiement(null);
@@ -267,6 +349,7 @@ export default function PaiementsPage() {
         montant: paiement.montant ? paiement.montant.toString() : '',
         type: paiement.type || '',
         description: paiement.description || '',
+        user_id: user ? user.id : paiement.user_id || ''
       });
     } else {
       resetForm();
@@ -295,8 +378,11 @@ export default function PaiementsPage() {
       setDialogOpen(false);
       resetForm();
       
-      // Rafraîchir les données de paiements et invalider le cache
-      await refetchPaiements();
+      // Rafraîchir les données de paiements, les statistiques et invalider le cache
+      await Promise.all([
+        refetchPaiements(),
+        refetchStats()
+      ]);
       
       // Mettre à jour les données filtrées
       if (paiementsData?.data) {
@@ -331,8 +417,11 @@ export default function PaiementsPage() {
 
       toast.success(result.message || 'Paiement supprimé avec succès');
       
-      // Rafraîchir les données
-      refetchPaiements();
+      // Rafraîchir les données et les statistiques
+      await Promise.all([
+        refetchPaiements(),
+        refetchStats()
+      ]);
     } catch (error) {
       console.error("Erreur lors de la suppression du paiement:", error);
       toast.error(`Impossible de supprimer le paiement: ${error.message}`);
@@ -340,8 +429,9 @@ export default function PaiementsPage() {
   };
 
   // Gérer l'affichage pendant le chargement
-  const isLoading = paiementsLoading || elevesLoading;
+  const isLoading = paiementsLoading || elevesLoading || isStatsLoading;
   const error = paiementsError || elevesError;
+  const totalPages = Math.ceil(totalPaiements / paiementsPerPage);
 
   // Modifier la fonction searchEleves
   const searchEleves = (term) => {
@@ -399,18 +489,21 @@ export default function PaiementsPage() {
 
   return (
     <div className='p-5'>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Paiements</h1>
-        <Button onClick={() => handleOpenDialog()} className='cursor-pointer'>
-          <PlusCircle className="h-4 w-4 mr-2 " />
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <h1 className=" text-xl sm:text-3xl font-bold">Paiements</h1>
+        <Button onClick={() => handleOpenDialog()} className='cursor-pointer text-[12px]'>
+          <PlusCircle className="h-4 w-4 " />
               Nouveau paiement
         </Button>
       </div>
-      <div className='flex justify-end  mb-4'>
-         <Link href='/dashboard/paiements-supprimes'  className=' bg-black text-white p-2 rounded-lg hover:bg-gray-800 cursor-pointer'>
-             Voir les paiements des élèves supprimer
-         </Link>
-      </div>
+       {(userRole === 'directeur' || userRole === 'admin' || userRole === 'secretaire') && (
+           <div className='flex justify-end  mb-4'>
+               <Link href='/dashboard/paiements-supprimes'  className=' bg-black text-white text-sm text-center p-2 rounded-lg hover:bg-gray-800 cursor-pointer'>
+                   Voir les paiements des élèves supprimés
+               </Link>
+            </div>
+          )}
+ 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <Card>
           <CardHeader>
@@ -654,69 +747,118 @@ export default function PaiementsPage() {
           <CardTitle>Liste des paiements</CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredPaiements.length === 0 ? (
+          {filteredPaiements.length === 0 && !paiementsLoading ? (
             <div className="flex flex-col items-center py-8">
               <Wallet className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">Aucun paiement ne correspond à votre recherche</p>
             </div>
           ) : (
-          <Table>
+         <div className='w-full overflow-x-auto'>
+           <Table className="min-w-[768px]">
             <TableHeader>
               <TableRow>
                   <TableHead>Élève</TableHead>
                 <TableHead>Date</TableHead>
                   <TableHead>Montant</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Description</TableHead>
+                  <TableHead>Libellé</TableHead>
+                  <TableHead>Utilisateur</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-                {filteredPaiements.map((paiement) => {
-                  const eleve = elevesData?.data.find(e => e.id === paiement.eleve_id);
-                  return (
-                  <TableRow key={paiement.id}>
-                      <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : '-'}</TableCell>
-                      <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{paiement.montant} $</TableCell>
-                    <TableCell>
-                        <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          paiement.type === 'Scolarite' ? 'bg-green-100 text-green-800' : 
-                          paiement.type === 'FraisDivers' ? 'bg-purple-100 text-purple-800' : 
-                          paiement.type === 'FraisConnexes' ? 'bg-indigo-100 text-indigo-800' : 
-                          'bg-orange-100 text-orange-800'
-                        }`}>
-                          {paiement.type}
-                        </div>
-                    </TableCell>
-                      <TableCell>{paiement.description || '-'}</TableCell>
+                {paiementsLoading ? (
+                  Array(paiementsPerPage).fill(0).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleOpenDialog(paiement)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-red-500" 
-                            onClick={() => handleDelete(paiement.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        <div className="flex justify-end space-x-2">
+                          <Skeleton className="h-8 w-8 rounded-md" />
+                          <Skeleton className="h-8 w-8 rounded-md" />
                         </div>
                       </TableCell>
-                  </TableRow>
-                   );
-                })}
+                    </TableRow>
+                  ))
+                ) : (
+                  filteredPaiements.map((paiement) => {
+                    const eleve = elevesData?.data.find(e => e.id === paiement.eleve_id);
+                    return (
+                    <TableRow key={paiement.id}>
+                        <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : '-'}</TableCell>
+                        <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
+                        <TableCell>{paiement.montant} $</TableCell>
+                      <TableCell>
+                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            paiement.type === 'Scolarite' ? 'bg-green-100 text-green-800' : 
+                            paiement.type === 'FraisDivers' ? 'bg-purple-100 text-purple-800' : 
+                            paiement.type === 'FraisConnexes' ? 'bg-indigo-100 text-indigo-800' : 
+                            'bg-orange-100 text-orange-800'
+                          }`}>
+                            {paiement.type}
+                          </div>
+                      </TableCell>
+                        <TableCell>{paiement.description || '-'}</TableCell>
+                        <TableCell>{userNames[paiement.user_id] || 'Utilisateur inconnu'}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleOpenDialog(paiement)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-500" 
+                              onClick={() => handleDelete(paiement.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                    </TableRow>
+                     );
+                  })
+                )}
             </TableBody>
           </Table>
+         </div>
           )}
         </CardContent>
       </Card>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center space-x-4 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+            disabled={currentPage === 1 || paiementsLoading}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Précédent
+          </Button>
+          <span className="text-sm">
+            Page {currentPage} sur {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+            disabled={currentPage === totalPages || paiementsLoading}
+          >
+            Suivant
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 

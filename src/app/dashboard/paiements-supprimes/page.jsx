@@ -45,6 +45,7 @@ import { useRouter } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 10;
 
+
 export default function PaiementsSupprimesPage() {
   const [paiements, setPaiements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +142,7 @@ export default function PaiementsSupprimesPage() {
   const paginatedPaiements = filteredPaiements.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-2">
        <Button className='mb-5 cursor-pointer' onClick={() => router.push('/dashboard/eleves')}>
           Retour à la liste de tous les paiements
         </Button>
@@ -152,7 +153,7 @@ export default function PaiementsSupprimesPage() {
             <CardTitle className="text-sm font-medium">Total des paiements</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total.toFixed(2)} €</div>
+            <div className="text-2xl font-bold">{stats.total.toFixed(2)} $</div>
             <div className="text-sm text-muted-foreground">{stats.count} paiements</div>
           </CardContent>
         </Card>
@@ -162,7 +163,7 @@ export default function PaiementsSupprimesPage() {
               <CardTitle className="text-sm font-medium">{type}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{montant.toFixed(2)} €</div>
+              <div className="text-2xl font-bold">{montant.toFixed(2)} $</div>
               <div className="text-sm text-muted-foreground">
                 {((montant / stats.total) * 100).toFixed(1)}% du total
               </div>
@@ -174,9 +175,9 @@ export default function PaiementsSupprimesPage() {
       {/* Filtres */}
       <Card className="mb-6">
         <CardHeader className="pb-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-2">
             <CardTitle>Filtres</CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 bg-blue-50 rounded-lg p-1">
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Réinitialiser

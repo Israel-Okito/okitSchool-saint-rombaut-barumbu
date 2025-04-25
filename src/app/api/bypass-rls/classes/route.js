@@ -3,6 +3,36 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+let cachedAnneeActive = null;
+let cacheExpiry = null;
+const CACHE_DURATION = 60 * 1000; 
+
+async function getAnneeActive(adminClient) {
+  if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
+    return cachedAnneeActive;
+  }
+  
+  const { data, error } = await adminClient
+    .from('annee_scolaire')
+    .select('id')
+    .eq('est_active', true)
+    .single();
+  
+  if (error) {
+    throw new Error("Erreur lors de la récupération de l'année scolaire active");
+  }
+  
+  if (!data) {
+    throw new Error("Aucune année scolaire active n'a été trouvée");
+  }
+  
+  cachedAnneeActive = data.id;
+  cacheExpiry = Date.now() + CACHE_DURATION;
+  
+  return data.id;
+}
+
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,19 +44,8 @@ export async function GET(request) {
     
     const adminClient = await createClient();
     
-    const { data: anneeData, error: anneeError } = await adminClient
-      .from('annee_scolaire')
-      .select('id')
-      .eq('est_active', true)
-      .single();
-      
-    if (anneeError && anneeError.code !== 'PGRST116') { // Ignore l'erreur "no rows returned"
-      console.error('Erreur lors de la récupération de l\'année active:', anneeError);
-      return NextResponse.json({ 
-        success: false, 
-        error: "Erreur lors de la récupération de l'année active"
-      }, { status: 500 });
-    }
+
+    const annee_scolaire_id = await getAnneeActive(adminClient);
     
     // Construire la requête de base
     let query = adminClient
@@ -34,8 +53,8 @@ export async function GET(request) {
       .select('id, nom, niveau, titulaire_id', { count: 'exact' });
     
     // Ajouter le filtre d'année active si elle existe
-    if (anneeData) {
-      query = query.eq('annee_scolaire_id', anneeData.id);
+    if (annee_scolaire_id) {
+      query = query.eq('annee_scolaire_id', annee_scolaire_id);
     }
     
     // Ajouter les filtres de recherche et niveau si fournis

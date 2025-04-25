@@ -8,12 +8,14 @@ import { Label } from '@/components/ui/label';
 import { format, endOfMonth, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 
-const fetchTransactions = async (startDate, endDate) => {
+const fetchTransactions = async (startDate, endDate, page = 1, limit = 10) => {
   const formattedStartDate = format(startDate, 'yyyy-MM-dd');
   const formattedEndDate = format(endDate, 'yyyy-MM-dd');
   
-  const url = `/api/bypass-rls/journal/period?start=${formattedStartDate}&end=${formattedEndDate}`;
+  const url = `/api/bypass-rls/journal/period?start=${formattedStartDate}&end=${formattedEndDate}&page=${page}&limit=${limit}`;
   
   try {
     const response = await fetch(url);
@@ -44,6 +46,13 @@ function RepartitionPageContent() {
   const [totalSorties, setTotalSorties] = useState(0);
   const [categoryTotals, setCategoryTotals] = useState({});
   const [periode, setPeriode] = useState({ start: '', end: '' });
+  
+  // États pour la pagination des transactions
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [paginatedTransactions, setPaginatedTransactions] = useState([]);
+  const transactionsPerPage = 10;
+  const [totalTransactions, setTotalTransactions] = useState(0);
 
   const categories = {
     'Charge du personnel': { pourcentage: 60 },
@@ -67,52 +76,67 @@ function RepartitionPageContent() {
   }, [selectedMonth]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['transactions', selectedMonth],
+    queryKey: ['transactions', selectedMonth, currentPage],
     queryFn: () => {
       const { startDate, endDate } = getPeriodDates();
-      return fetchTransactions(startDate, endDate);
+      return fetchTransactions(startDate, endDate, currentPage, transactionsPerPage);
     },
     staleTime: 1000 * 60 * 5, 
     retry: 1
   });
 
   useEffect(() => {
-    if (data && data.success && data.data) {
-      let entrees = 0;
-      let sorties = 0;
-      const totalsPerCategory = {
-        'Charge du personnel': 0,
-        'Fonctionnement': 0,
-        'Investissement': 0,
-        'Économat': 0,
-        'Santé': 0
-      };
+    if (data && data.success) {
+      // Traiter toutes les transactions pour les totaux globaux
+      if (data.all_data) {
+        let entrees = 0;
+        let sorties = 0;
+        const totalsPerCategory = {
+          'Charge du personnel': 0,
+          'Fonctionnement': 0,
+          'Investissement': 0,
+          'Économat': 0,
+          'Santé': 0
+        };
 
-      data.data.forEach(transaction => {
-        const montant = parseFloat(transaction.montant) || 0;
-          
-        if (transaction.type === 'entree') {
-          entrees += montant;
-        } else if (transaction.type === 'sortie') {
-          sorties += montant;
+        data.all_data.forEach(transaction => {
+          const montant = parseFloat(transaction.montant) || 0;
+            
+          if (transaction.type === 'entree') {
+            entrees += montant;
+          } else if (transaction.type === 'sortie') {
+            sorties += montant;
 
-          const categorie = transaction.categorie;
-          
-          if (categorie in totalsPerCategory) {
-            totalsPerCategory[categorie] += montant;
+            const categorie = transaction.categorie;
+            
+            if (categorie in totalsPerCategory) {
+              totalsPerCategory[categorie] += montant;
+            }
           }
-        }
-      });
+        });
 
-      setTotalEntrees(entrees);
-      setTotalSorties(sorties);
-      setCategoryTotals(totalsPerCategory);
+        setTotalEntrees(entrees);
+        setTotalSorties(sorties);
+        setCategoryTotals(totalsPerCategory);
+      }
+
+      // Définir les transactions paginées pour l'affichage
+      setPaginatedTransactions(data.data || []);
+      
+      // Mettre à jour les informations de pagination
+      setTotalTransactions(data.total || 0);
+      setTotalPages(data.totalPages || Math.ceil((data.total || 0) / transactionsPerPage));
     }
-  }, [data]);
+  }, [data, transactionsPerPage]);
 
   useEffect(() => {
     getPeriodDates();
   }, [selectedMonth, getPeriodDates]);
+
+  useEffect(() => {
+    // Réinitialiser la page en cas de changement de mois
+    setCurrentPage(1);
+  }, [selectedMonth]);
 
   const calculateMontantRepartition = (percentage) => {
     return (totalEntrees * percentage) / 100;
@@ -132,8 +156,6 @@ function RepartitionPageContent() {
 
     return options;
   };
-
-  const transactions = data?.data || [];
 
   return (
     <div className="container mx-auto p-6">
@@ -203,7 +225,7 @@ function RepartitionPageContent() {
                 Réessayer
               </button>
             </div>
-          ) : transactions.length === 0 ? (
+          ) : paginatedTransactions.length === 0 && currentPage === 1 ? (
             <div className="p-8 text-center">
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
@@ -317,40 +339,82 @@ function RepartitionPageContent() {
                 </table>
               </div>
 
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold mb-4">Liste des transactions</h3>
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border p-3 text-left">Date</th>
-                      <th className="border p-3 text-left">Description</th>
-                      <th className="border p-3 text-left">Type</th>
-                      <th className="border p-3 text-left">Catégorie</th>
-                      <th className="border p-3 text-right">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-gray-50">
-                        <td className="border p-3">{format(new Date(transaction.date), 'dd/MM/yyyy')}</td>
-                        <td className="border p-3">{transaction.description}</td>
-                        <td className="border p-3">
-                          <span className={`px-2 py-1 rounded ${
-                            transaction.type === 'entree' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {transaction.type === 'entree' ? 'Entrée' : 'Sortie'}
-                          </span>
-                        </td>
-                        <td className="border p-3">{transaction.categorie || '-'}</td>
-                        <td className="border p-3 text-right">
-                          <span className={transaction.type === 'entree' ? 'text-green-600' : 'text-red-600'}>
-                            {transaction.type === 'entree' ? '+' : '-'}{parseFloat(transaction.montant).toLocaleString('fr-FR')} $
-                          </span>
-                        </td>
+              <div className="mt-8 overflow-x-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Liste des transactions</h3>
+                  {totalTransactions > 0 && (
+                    <div className="text-sm text-gray-500">
+                      Affichage de {(currentPage - 1) * transactionsPerPage + 1} à {Math.min(currentPage * transactionsPerPage, totalTransactions)} sur {totalTransactions} transactions
+                    </div>
+                  )}
+                </div>
+                
+                <div className="relative">
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                      <Loader className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  )}
+                  
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border p-3 text-left">Date</th>
+                        <th className="border p-3 text-left">Description</th>
+                        <th className="border p-3 text-left">Type</th>
+                        <th className="border p-3 text-left">Catégorie</th>
+                        <th className="border p-3 text-right">Montant</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paginatedTransactions.map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-gray-50">
+                          <td className="border p-3">{format(new Date(transaction.date), 'dd/MM/yyyy')}</td>
+                          <td className="border p-3">{transaction.description}</td>
+                          <td className="border p-3">
+                            <span className={`px-2 py-1 rounded ${
+                              transaction.type === 'entree' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {transaction.type === 'entree' ? 'Entrée' : 'Sortie'}
+                            </span>
+                          </td>
+                          <td className="border p-3">{transaction.categorie || '-'}</td>
+                          <td className="border p-3 text-right">
+                            <span className={transaction.type === 'entree' ? 'text-green-600' : 'text-red-600'}>
+                              {transaction.type === 'entree' ? '+' : '-'}{parseFloat(transaction.montant).toLocaleString('fr-FR')} $
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {totalPages > 1 && (
+                  <div className="flex justify-center items-center space-x-4 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                      disabled={currentPage === 1 || isLoading}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Précédent
+                    </Button>
+                    <span className="text-sm">
+                      Page {currentPage} sur {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages || isLoading}
+                    >
+                      Suivant
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -367,4 +431,4 @@ export default function RepartitionPage() {
       <RepartitionPageContent />
     </QueryClientProvider>
   );
-} 
+}

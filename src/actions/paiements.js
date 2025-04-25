@@ -56,6 +56,7 @@ export async function createPaiement(formData) {
     if (formData.user_id) {
       dataToInsert.user_id = formData.user_id;
     }
+    
 
     const { data, error } = await supabase
       .from('paiements_eleves')
@@ -106,7 +107,8 @@ export async function updatePaiement(formData) {
         montant: montantValue,
         date: formData.date,
         type: formData.type,
-        description: formData.description || ''
+        description: formData.description || '',
+        user_id: formData.user_id
       })
       .eq('id', formData.id)
       .select()
@@ -182,6 +184,16 @@ export async function getPaiementsEleve(eleve_id) {
     if (!eleve_id) {
       throw new Error("L'identifiant de l'élève est requis");
     }
+
+    const { data:  annee_scolaire_id, error: anneeError } = await supabase
+    .from('annee_scolaire')
+    .select('id')
+    .eq('est_active', true)
+    .single();
+
+   if (anneeError || !annee_scolaire_id) {
+    throw new Error("Aucune année scolaire active n'a été trouvée");
+   }
     
     // Vérifier si l'élève existe encore ou s'il a été supprimé
     const { data: eleveActif, error: eleveError } = await supabase

@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, ArrowLeft, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
+
 export default function HistoriqueSuppressionsPage() {
   const [deletedEntries, setDeletedEntries] = useState([]);
   const [filteredEntries, setFilteredEntries] = useState([]);
@@ -186,16 +187,18 @@ export default function HistoriqueSuppressionsPage() {
   return (
     <div className="p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
+      <h1 className="text-xl sm:text-2xl mb-2 font-bold">Historique des suppressions</h1>
+    
         <div className="flex items-center space-x-4 mb-4 sm:mb-0">
           <Button variant="outline" onClick={goBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          <h1 className="text-2xl font-bold">Historique des suppressions</h1>
-        </div>
-        <Button variant="outline" onClick={fetchDeletedHistory}>
+          <Button variant="outline" onClick={fetchDeletedHistory}>
           Actualiser
         </Button>
+         </div>
+       
       </div>
 
       <Card className="mb-6">
@@ -231,7 +234,7 @@ export default function HistoriqueSuppressionsPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>

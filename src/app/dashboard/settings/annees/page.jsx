@@ -101,11 +101,29 @@ export default function AnneesPage() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette année scolaire ?")) return;
+  const handleDelete = async (id, libelle) => {
+    // Utiliser une boîte de dialogue de confirmation plus informative
+    const confirmMessage = `ATTENTION ! Vous êtes sur le point de supprimer l'année scolaire "${libelle}" ainsi que TOUTES les données associées :
+
+- Toutes les classes de cette année
+- Tous les élèves inscrits dans ces classes
+- Toutes les entrées du journal de caisse liées à cette année
+- Tous les paiements enregistrés pour cette année
+- Toutes les affectations du personnel pour cette année
+
+Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr de vouloir continuer ?`;
+
+    if (!confirm(confirmMessage)) return;
+    
+    // Afficher un message de chargement
+    const toastId = toast.loading("Suppression en cours...");
     
     try {
       const response = await deleteAnnee(id);
+      
+      // Fermer le toast de chargement
+      toast.dismiss(toastId);
+      
       if (response.success) {
         toast.success(response.message);
         // Invalider la requête des années scolaires pour forcer une mise à jour
@@ -114,6 +132,8 @@ export default function AnneesPage() {
         throw new Error(response.error);
       }
     } catch (error) {
+      // Fermer le toast de chargement en cas d'erreur
+      toast.dismiss(toastId);
       toast.error(error.message);
     }
   };
@@ -261,6 +281,13 @@ export default function AnneesPage() {
                     onClick={() => handleOpenDialog(annee)}
                   >
                     Modifier
+                  </Button>
+                     <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(annee.id, annee.libelle)}
+                  >
+                    Supprimer
                   </Button>
                 </div>
               </div>

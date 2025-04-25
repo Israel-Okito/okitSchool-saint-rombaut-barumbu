@@ -178,12 +178,20 @@ export async function getJournalDeletedHistory(offset = 0, limit = 10, searchTer
   
   try {
     // Récupérer l'année scolaire active
-    // const annee_scolaire_id = await getAnneeActive();
+    const annee_scolaire_id = await getAnneeActive();
     
     // Construire la requête de base avec les colonnes nécessaires et pagination
     let query = supabase
       .from('journal_de_caisse_deleted')
-      .select('id, original_id, date, description, montant, type, categorie, deleted_at', { count: 'exact' })
+      .select(`
+        id, 
+        original_id, 
+        date, 
+        description, 
+        montant, 
+        type, 
+        categorie, 
+        deleted_at`, { count: 'exact' })
       // .eq('annee_scolaire_id', annee_scolaire_id)
       .order('deleted_at', { ascending: false });
     

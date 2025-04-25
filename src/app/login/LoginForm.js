@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { auth } from '@/utils/auth';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
-
+import { useUser } from '@/lib/UserContext';
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,17 +16,48 @@ export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
+  const { refetch } = useUser();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setIsLoading(true);
-      await auth.signIn(email, password);
+      setErr(false);
+      
+      // Nettoyer complètement le localStorage avant la connexion
+      localStorage.clear();
+      
+      // Connexion avec les identifiants
+      const result = await auth.signIn(email, password);
+      
+      if (!result || !result.details) {
+        throw new Error("Impossible de récupérer les détails de l'utilisateur");
+      }
+      
+      // Stocker les données utilisateur de manière cohérente
+      const userData = {
+        user: {
+          id: result.details.id,
+          email: result.details.email,
+          nom: result.details.nom,
+        },
+        role: result.details.role || null,
+      };
+      
+      localStorage.setItem('userData', JSON.stringify(userData));
+      localStorage.setItem('user_role', result.details.role);
+      localStorage.setItem('user_name', result.details.nom);
+      
+      // Rafraîchir le contexte utilisateur
+      await refetch();
+      
+      toast.success(`Bienvenue ${result.details.nom}!`);
       router.push('/dashboard');
       router.refresh();
     } catch (error) {
-      setErr(error.message || "Erreur d'authentification")
-      toast.error("erreur de l'authentification");
+      console.error("Erreur de connexion:", error);
+      setErr(error.message || "Erreur d'authentification");
+      toast.error("Erreur d'authentification, veuillez vérifier vos identifiants");
     } finally {
       setIsLoading(false);
     }

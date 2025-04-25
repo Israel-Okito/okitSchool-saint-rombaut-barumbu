@@ -18,6 +18,7 @@ import { usePersonnelQuery} from '@/hooks/usePersonnelQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Eye } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
 
 
 const cache = {
@@ -34,6 +35,7 @@ const POSTES = [
   { value: 'caissier', label: 'Caissier' }
 ];
 
+
 export default function PersonnelPage() {
   const queryClient = useQueryClient();
   
@@ -48,6 +50,7 @@ export default function PersonnelPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [personnelPerPage] = useState(10);
+  const { user } = useUser();
   
   // Formulaire
   const [formData, setFormData] = useState({
@@ -60,7 +63,8 @@ export default function PersonnelPage() {
     adresse: '',
     sexe: '',
     date_naissance: '',
-    lieu_naissance: ''
+    lieu_naissance: '',
+    user_id: ''
   });
 
   const { 
@@ -118,6 +122,15 @@ export default function PersonnelPage() {
   });
 
   useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        user_id: user.id
+      }));
+    }
+  }, [user]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
       setCurrentPage(1); 
@@ -132,17 +145,14 @@ export default function PersonnelPage() {
     const parPoste = {
         enseignant: 0,
         administratif: 0,
-        autre: 0
     };
 
     if (personnelData?.data) {
       personnelData.data.forEach(p => {
       if (p.poste?.toLowerCase().includes('enseignant')) {
           parPoste.enseignant++;
-      } else if (p.poste?.toLowerCase().includes('administratif')) {
-          parPoste.administratif++;
       } else {
-          parPoste.autre++;
+          parPoste.administratif++;
         }
       });
     }
@@ -184,7 +194,8 @@ export default function PersonnelPage() {
       adresse: '',
       sexe: '',
       date_naissance: '',
-      lieu_naissance: ''
+      lieu_naissance: '',
+      user_id: user ? user.id : ''
     });
     setIsEditing(false);
     setSelectedPersonnel(null);
@@ -227,7 +238,8 @@ export default function PersonnelPage() {
         adresse: personnelDetails.adresse || '',
         sexe: personnelDetails.sexe || '',
         date_naissance: personnelDetails.date_naissance || '',
-        lieu_naissance: personnelDetails.lieu_naissance || ''
+        lieu_naissance: personnelDetails.lieu_naissance || '',
+        user_id: user ? user.id : paiement.user_id || ''
       });
     } else {
       resetForm();
@@ -534,8 +546,8 @@ export default function PersonnelPage() {
         )}
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen} >
+        <DialogContent className="max-w-lg overflow-auto h-full   max-h-[90vh] ">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Modifier un membre du personnel' : 'Ajouter un membre du personnel'}</DialogTitle>
             <DialogDescription>
@@ -555,6 +567,7 @@ export default function PersonnelPage() {
                     value={formData.nom}
                     onChange={handleChange}
                     required
+                    placeholder="Entrez le nom du membre du personnel"
                   />
                 </div>
               
@@ -566,6 +579,7 @@ export default function PersonnelPage() {
                     value={formData.prenom}
                     onChange={handleChange}
                     required
+                    placeholder="Entrez le prénom du membre du personnel"
                   />
               </div>
               
@@ -576,6 +590,7 @@ export default function PersonnelPage() {
                   name="postnom"
                   value={formData.postnom}
                   onChange={handleChange}
+                  placeholder="Entrez le post-nom du membre du personnel"
                 />
               </div>
               
@@ -621,6 +636,7 @@ export default function PersonnelPage() {
                     name="contact"
                     value={formData.contact}
                     onChange={handleChange}
+                    placeholder="Entrez le numéro de téléphone du membre du personnel"
                   />
               </div>
               
@@ -632,6 +648,7 @@ export default function PersonnelPage() {
                     type="date"
                     value={formData.date_naissance}
                     onChange={handleChange}
+                    placeholder="Entrez la date de naissance du membre du personnel"
                   />
               </div>
               
@@ -642,6 +659,7 @@ export default function PersonnelPage() {
                   name="lieu_naissance"
                   value={formData.lieu_naissance}
                   onChange={handleChange}
+                  placeholder="Entrez le lieu de naissance du membre du personnel"
                 />
               </div>
               
@@ -652,6 +670,7 @@ export default function PersonnelPage() {
                   name="adresse"
                   value={formData.adresse}
                   onChange={handleChange}
+                  placeholder="Entrez l'adresse du membre du personnel"
                 />
               </div>
             </div>

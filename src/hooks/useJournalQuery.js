@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 
 // Map global pour le cache utilisateur
@@ -45,34 +45,26 @@ const enrichJournalData = async (journalData) => {
   return journalData;
 };
 
+// Fonction qui interroge l'API pour récupérer les entrées du journal
 const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
-  
-  const queryParams = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString()
-  });
+  const params = new URLSearchParams();
+  params.append('page', page);
+  params.append('limit', limit);
   
   if (search) {
-    queryParams.append('search', search);
+    params.append('search', search);
   }
   
-  const url = `/api/bypass-rls/journal?${queryParams.toString()}`;
-  
-  const response = await fetch(url, {
-    cache: 'no-store'
-  });
-  
+  const response = await fetch(`/api/bypass-rls/journal?${params.toString()}`);
   
   if (!response.ok) {
-    console.error('fetchJournal - Erreur:', response.statusText);
     throw new Error('Erreur lors de la récupération du journal');
   }
   
   const data = await response.json();
   
   if (!data.success) {
-    console.error('fetchJournal - Erreur API:', data.error);
-    throw new Error(data.error);
+    throw new Error(data.error || 'Erreur serveur lors de la récupération du journal');
   }
   
   // Enrichir les données avec les noms d'utilisateurs
@@ -84,38 +76,23 @@ const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
   };
 };
 
+/**
+ * Hook personnalisé pour récupérer les entrées du journal avec React Query
+ * 
+ * @param {Object} options - Options pour la requête
+ * @param {number} options.page - Numéro de page
+ * @param {number} options.limit - Nombre d'éléments par page
+ * @param {string} options.search - Terme de recherche
+ * @param {boolean} options.enabled - Si la requête doit être exécutée
+ * @returns {Object} Résultat de la requête React Query
+ */
 export function useJournalQuery({ page = 1, limit = 10, search = '', enabled = true }) {
-  
-  const queryClient = useQueryClient();
-  
   return useQuery({
-    queryKey: ['journal', { page, limit, search }],
+    queryKey: ['journal', page, limit, search],
     queryFn: () => fetchJournal({ page, limit, search }),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
     enabled,
-    keepPreviousData: true,
-    staleTime: 30 * 1000, 
-    onSuccess: (data) => {
-      console.log('useJournalQuery - Succès:', data);
-      // Précharger les pages adjacentes
-      if (page > 1) {
-        queryClient.prefetchQuery({
-          queryKey: ['journal', { page: page - 1, limit, search }],
-          queryFn: () => fetchJournal({ page: page - 1, limit, search }),
-        });
-      }
-      
-      // Calculer le nombre total de pages
-      const totalPages = Math.ceil((data.total || 0) / limit);
-      
-      if (page < totalPages) {
-        queryClient.prefetchQuery({
-          queryKey: ['journal', { page: page + 1, limit, search }],
-          queryFn: () => fetchJournal({ page: page + 1, limit, search }),
-        });
-      }
-    },
-    onError: (error) => {
-      console.error('useJournalQuery - Erreur:', error);
-    }
+    keepPreviousData: true
   });
 }

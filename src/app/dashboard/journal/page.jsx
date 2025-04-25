@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,11 @@ import { useAnneeActiveQuery } from '@/hooks/useAnneeActiveQuery';
 import { useJournalQuery } from '@/hooks/useJournalQuery';
 import { useRubriquesQuery } from '@/hooks/useRubriquesQuery';
 import { useUser } from '@/lib/UserContext';
+import { useRouter } from 'next/navigation';
+import { useJournalStatsQuery } from '@/hooks/useJournalStatsQuery';
+import { useQueryClient } from '@tanstack/react-query';
+
+
 
 export default function JournalPage() {
   const [entries, setEntries] = useState([]);
@@ -30,6 +35,8 @@ export default function JournalPage() {
   const [userRole, setUserRole] = useState(null);
   const [rubriques, setRubriques] = useState([]);
   
+  const queryClient = useQueryClient();
+  
   const { 
     data: anneeActiveData,
     isLoading: isAnneeActiveLoading
@@ -37,16 +44,50 @@ export default function JournalPage() {
   
   const anneeActive = anneeActiveData?.anneeActive;
 
-  const [stats, setStats] = useState({
-    today: { total: 0, count: 0 },
-    month: { total: 0, count: 0 },
-    year: { total: 0, count: 0 }
+  const {
+    data: statsData,
+    isLoading: statsLoading,
+    isError: isStatsError,
+    error: statsError,
+    refetch: refetchStats
+  } = useJournalStatsQuery({
+    enabled: !!anneeActiveData?.anneeActive,
+    onError: (error) => {
+      toast.error(`Erreur: ${error.message}`);
+    }
   });
-  
+
+  const stats = statsData || {
+    today: { 
+      total: 0, 
+      count: 0,
+      totalEntrees: 0,
+      totalSorties: 0,
+      countEntrees: 0,
+      countSorties: 0 
+    },
+    month: { 
+      total: 0, 
+      count: 0,
+      totalEntrees: 0,
+      totalSorties: 0,
+      countEntrees: 0,
+      countSorties: 0 
+    },
+    year: { 
+      total: 0, 
+      count: 0,
+      totalEntrees: 0,
+      totalSorties: 0,
+      countEntrees: 0,
+      countSorties: 0
+    }
+  };
   
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const entriesPerPage = 10;
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -57,14 +98,10 @@ export default function JournalPage() {
     user_id: ''
   });
   
-  
-  
-  // Récupérer les informations utilisateur depuis le contexte global
   const {user, role } = useUser();
 
-  // Initialiser le formulaire avec l'ID utilisateur du contexte
   useEffect(() => {
-      if (role && user) {
+    if (role && user) {
       setUserInfo(user);
       setUserRole(role);
       setFormData(prev => ({
@@ -74,7 +111,6 @@ export default function JournalPage() {
     }
   }, [role, user]);
 
-  // Utiliser React Query pour récupérer les entrées du journal
   const { 
     data: journalData,
     isLoading: isJournalLoading,
@@ -89,28 +125,24 @@ export default function JournalPage() {
   });
   
 
-  // Utiliser React Query pour récupérer les rubriques
   const {
     data: rubriquesData,
     isLoading: isRubriquesLoading
   } = useRubriquesQuery();
 
-  // Debounce du terme de recherche
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+      setCurrentPage(1);
     }, 300);
     
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Mettre à jour les états locaux lorsque les données React Query changent
   useEffect(() => {
     if (journalData?.success) {
       setEntries(journalData.data || []);
       setTotalEntries(journalData.total || 0);
-      calculateStats(journalData.data || []);
     }
   }, [journalData]);
 
@@ -120,56 +152,16 @@ export default function JournalPage() {
     }
   }, [rubriquesData]);
 
-  // Mettre à jour l'état du chargement
   useEffect(() => {
     setLoading(isAnneeActiveLoading);
     setTableLoading(isJournalLoading);
   }, [isJournalLoading, isAnneeActiveLoading]);
 
-  // Gérer les erreurs
   useEffect(() => {
     if (isJournalError && journalError) {
       toast.error(`Erreur: ${journalError.message}`);
     }
   }, [isJournalError, journalError]);
-
-  const calculateStats = (data) => {
-    const today = new Date().toISOString().split('T')[0];
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
-
-    const todayStats = { total: 0, count: 0 };
-    const monthStats = { total: 0, count: 0 };
-    const yearStats = { total: 0, count: 0 };
-
-    data.forEach(entry => {
-      const entryDate = new Date(entry.date);
-      const entryDay = entryDate.toISOString().split('T')[0];
-      const entryMonth = entryDate.getMonth() + 1;
-      const entryYear = entryDate.getFullYear();
-
-      const montant = parseFloat(entry.montant);
-
-      if (entryDay === today) {
-        todayStats.total += montant;
-        todayStats.count++;
-      }
-      if (entryMonth === currentMonth) {
-        monthStats.total += montant;
-        monthStats.count++;
-      }
-      if (entryYear === currentYear) {
-        yearStats.total += montant;
-        yearStats.count++;
-      }
-    });
-
-    setStats({
-      today: todayStats,
-      month: monthStats,
-      year: yearStats
-    });
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -180,7 +172,6 @@ export default function JournalPage() {
   };
 
   const handleSelectChange = (name, value) => {
-    // Si on change le type et qu'on sélectionne "Entrée", on efface la catégorie
     if (name === 'type' && value === 'entree') {
       setFormData(prev => ({
         ...prev,
@@ -227,6 +218,14 @@ export default function JournalPage() {
     setDialogOpen(true);
   };
 
+  const refreshStats = useCallback(async () => {
+    try {
+      await refetchStats();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des statistiques:', error);
+    }
+  }, [refetchStats]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -235,19 +234,17 @@ export default function JournalPage() {
       return;
     }
     
-      if (formData.type === 'sortie' && !formData.categorie) {
+    if (formData.type === 'sortie' && !formData.categorie) {
       toast.error('Veuillez sélectionner une rubrique pour une sortie');
-        return;
-      }
+      return;
+    }
 
     try {
-      // Mapper correctement les valeurs Entrée/Sortie vers entree/sortie
       const mappedFormData = {
         ...formData,
         type: formData.type === 'entree' ? 'entree' : 'sortie',
       };
       
-      // Exécuter l'action serveur appropriée
       const result = isEditing 
         ? await updateJournalEntry({ ...mappedFormData, id: selectedEntry.id })
         : await createJournalEntry(mappedFormData);
@@ -256,25 +253,24 @@ export default function JournalPage() {
         throw new Error(result.error);
       }
 
-      // Mise à jour optimiste de l'état local au lieu de refetch complet
       if (isEditing) {
-        // Pour une mise à jour, remplacer l'entrée existante dans le tableau
         setEntries(prevEntries => 
           prevEntries.map(entry => 
             entry.id === selectedEntry.id ? {...result.data, userName: userInfo?.nom} : entry
           )
         );
       } else if (currentPage === 1) {
-        // Pour une nouvelle entrée, l'ajouter uniquement si nous sommes sur la première page
-        // et mettre à jour le compteur total
         setEntries(prevEntries => [{...result.data, userName: userInfo?.nom}, ...prevEntries].slice(0, entriesPerPage));
         setTotalEntries(prev => prev + 1);
       } else {
-        // Si nous sommes sur une autre page, incrémenter le total mais refetch uniquement
         setTotalEntries(prev => prev + 1);
-        setCurrentPage(1); // Retourner à la première page pour voir la nouvelle entrée
-        refetchJournal();
+        setCurrentPage(1);
       }
+
+      queryClient.invalidateQueries({ queryKey: ['journalStats'] });
+      queryClient.invalidateQueries({ queryKey: ['journal'] });
+      
+      await refreshStats();
 
       toast.success(`Entrée ${isEditing ? 'modifiée' : 'ajoutée'} avec succès`);
       setDialogOpen(false);
@@ -296,50 +292,19 @@ export default function JournalPage() {
         throw new Error(result.error);
       }
 
-      // Mise à jour optimiste de l'état local
       setEntries(prevEntries => prevEntries.filter(entry => entry.id !== id));
       setTotalEntries(prev => prev - 1);
       
-      // Recalculer les statistiques avec le nouvel état
-      setStats(prevStats => {
-        const deletedEntry = entries.find(entry => entry.id === id);
-        if (!deletedEntry) return prevStats;
-        
-        const montant = parseFloat(deletedEntry.montant);
-        const entryDate = new Date(deletedEntry.date);
-        const today = new Date().toISOString().split('T')[0];
-        const entryDay = entryDate.toISOString().split('T')[0];
-        const entryMonth = entryDate.getMonth() + 1;
-        const currentMonth = new Date().getMonth() + 1;
-        const entryYear = entryDate.getFullYear();
-        const currentYear = new Date().getFullYear();
-        
-        const newStats = {...prevStats};
-        
-        if (entryDay === today) {
-          newStats.today.total -= montant;
-          newStats.today.count--;
-        }
-        if (entryMonth === currentMonth) {
-          newStats.month.total -= montant;
-          newStats.month.count--;
-        }
-        if (entryYear === currentYear) {
-          newStats.year.total -= montant;
-          newStats.year.count--;
-        }
-        
-        return newStats;
-      });
+      queryClient.invalidateQueries({ queryKey: ['journalStats'] });
+      queryClient.invalidateQueries({ queryKey: ['journal'] });
+      
+      await refreshStats();
 
       toast.success("Entrée supprimée avec succès");
       
-      // Si la page actuelle est vide après suppression et ce n'est pas la première page,
-      // retourner à la page précédente
       if (entries.length === 1 && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
       }
-      refetchJournal();
     } catch (error) {
       toast.error(`Impossible de supprimer l'entrée: ${error.message}`);
     }
@@ -374,13 +339,12 @@ export default function JournalPage() {
     );
   }
 
-  // Définir les options de type correctes
   const types = ['entree', 'sortie'];
   const typeLabels = { 'entree': 'Entrée', 'sortie': 'Sortie' };
 
   return (
     <div className="p-6">
-      <div className="flex flex-col sm:flex-row justify-between gap-5 items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between gap-5 items-center mb-6">
         <h1 className="text-2xl font-bold">Journal de caisse</h1>
         <div className="flex flex-wrap gap-2">
           {(userRole === 'directeur' || userRole === 'admin') && (
@@ -394,23 +358,42 @@ export default function JournalPage() {
           <Button onClick={() => handleOpenDialog()}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Nouvelle entrée
-                     </Button>
+          </Button>
         </div>
-               </div>
+    </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Aujourd'hui</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-2xl font-bold">{stats.today.total.toFixed(2)} $</p>
-                <p className="text-sm text-muted-foreground">{stats.today.count} entrées</p>
+            {statsLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-2xl font-bold">{stats.today.total.toFixed(2)} $</p>
+                    <p className="text-sm text-muted-foreground">Solde ({stats.today.count} transactions)</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-primary" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 p-2 rounded-md">
+                    <p className="text-green-700 text-lg font-semibold">+{stats.today.totalEntrees.toFixed(2)} $</p>
+                    <p className="text-xs text-green-600">{stats.today.countEntrees} entrées</p>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded-md">
+                    <p className="text-red-700 text-lg font-semibold">-{stats.today.totalSorties.toFixed(2)} $</p>
+                    <p className="text-xs text-red-600">{stats.today.countSorties} sorties</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -419,13 +402,32 @@ export default function JournalPage() {
             <CardTitle className="text-sm font-medium">Ce mois</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-2xl font-bold">{stats.month.total.toFixed(2)} $</p>
-                <p className="text-sm text-muted-foreground">{stats.month.count} entrées</p>
+            {statsLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-2xl font-bold">{stats.month.total.toFixed(2)} $</p>
+                    <p className="text-sm text-muted-foreground">Solde ({stats.month.count} transactions)</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-primary" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 p-2 rounded-md">
+                    <p className="text-green-700 text-lg font-semibold">+{stats.month.totalEntrees.toFixed(2)} $</p>
+                    <p className="text-xs text-green-600">{stats.month.countEntrees} entrées</p>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded-md">
+                    <p className="text-red-700 text-lg font-semibold">-{stats.month.totalSorties.toFixed(2)} $</p>
+                    <p className="text-xs text-red-600">{stats.month.countSorties} sorties</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -434,13 +436,32 @@ export default function JournalPage() {
             <CardTitle className="text-sm font-medium">Cette année</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-2xl font-bold">{stats.year.total.toFixed(2)} $</p>
-                <p className="text-sm text-muted-foreground">{stats.year.count} entrées</p>
+            {statsLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-2xl font-bold">{stats.year.total.toFixed(2)} $</p>
+                    <p className="text-sm text-muted-foreground">Solde ({stats.year.count} transactions)</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-primary" />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 p-2 rounded-md">
+                    <p className="text-green-700 text-lg font-semibold">+{stats.year.totalEntrees.toFixed(2)} $</p>
+                    <p className="text-xs text-green-600">{stats.year.countEntrees} entrées</p>
+                  </div>
+                  <div className="bg-red-50 p-2 rounded-md">
+                    <p className="text-red-700 text-lg font-semibold">-{stats.year.totalSorties.toFixed(2)} $</p>
+                    <p className="text-xs text-red-600">{stats.year.countSorties} sorties</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -482,7 +503,6 @@ export default function JournalPage() {
             </div>
           ) : (
             <div className="relative">
-              {/* Conteneur avec défilement horizontal sur petits écrans */}
               <div className="overflow-x-auto">
                 <Table className="w-full border-collapse">
                 <TableHeader>
@@ -575,14 +595,12 @@ export default function JournalPage() {
               </Table>
               </div>
 
-              {/* Message de défilement sur petits écrans */}
               <div className="md:hidden mt-2 text-xs text-muted-foreground text-center">
                 Faites défiler horizontalement pour voir toutes les données
               </div>
             </div>
           )}
           
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center space-x-4 mt-6">
               <Button

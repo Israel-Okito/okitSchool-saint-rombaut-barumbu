@@ -10,6 +10,7 @@ const PROTECTED_ROUTES = {
   '/dashboard/personnel': ['admin', 'directeur', 'secretaire'],
   '/dashboard/eleves': ['admin', 'directeur', 'secretaire'],
   '/dashboard/paiements': ['admin', 'directeur', 'comptable', 'caissier'],
+  '/dashboard/paiements-supprimes': ['admin', 'directeur'],
   '/dashboard/journal': ['admin', 'directeur', 'comptable', 'caissier'],
   '/dashboard/repartition': ['admin', 'directeur', 'comptable', 'caissier'],
   '/dashboard/classes': ['admin', 'directeur', 'secretaire'],

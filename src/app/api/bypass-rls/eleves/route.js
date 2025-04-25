@@ -3,6 +3,35 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+let cachedAnneeActive = null;
+let cacheExpiry = null;
+const CACHE_DURATION = 60 * 1000; 
+
+async function getAnneeActive(adminClient) {
+  if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
+    return cachedAnneeActive;
+  }
+  
+  const { data, error } = await adminClient
+    .from('annee_scolaire')
+    .select('id')
+    .eq('est_active', true)
+    .single();
+  
+  if (error) {
+    throw new Error("Erreur lors de la récupération de l'année scolaire active");
+  }
+  
+  if (!data) {
+    throw new Error("Aucune année scolaire active n'a été trouvée");
+  }
+  
+  cachedAnneeActive = data.id;
+  cacheExpiry = Date.now() + CACHE_DURATION;
+  
+  return data.id;
+}
+
 export async function GET(request) {
   const adminClient = await createClient();
   const searchParams = request.nextUrl.searchParams;
@@ -12,12 +41,28 @@ export async function GET(request) {
   const search = searchParams.get('search') || '';
   const classe_id = searchParams.get('classe_id');
   const offset = (page - 1) * limit;
+
+  
+  const annee_scolaire_id = await getAnneeActive(adminClient);
   
   try {
     let query = adminClient
       .from('eleves')
-      .select('id, nom, prenom, postnom, responsable, date_naissance, adresse, telephone, lieu_naissance, sexe, classe_id, classes(id, nom, niveau)', { count: 'exact' });
+      .select(`id,
+        nom,
+        prenom,
+        postnom,
+        responsable, 
+        date_naissance, 
+        adresse, 
+        telephone, 
+        lieu_naissance, 
+        sexe, 
+        classe_id, classes(id, nom, niveau)
+        `, { count: 'exact' })
+        .eq('annee_scolaire_id', annee_scolaire_id)
     
+
     if (search) {
       query = query.or(`nom.ilike.%${search}%,prenom.ilike.%${search}%`);
     }

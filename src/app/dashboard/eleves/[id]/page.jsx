@@ -37,6 +37,7 @@ import { deleteEleve } from '@/actions/eleves';
 import { useEleveDetailQuery } from '@/hooks/useEleveDetailQuery';
 import { useQueryClient } from '@tanstack/react-query';
 
+
 export default function EleveDetailPage() {
   const router = useRouter();
   const params = useParams();

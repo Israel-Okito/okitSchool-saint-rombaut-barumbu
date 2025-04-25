@@ -8,19 +8,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request) {
   try {
     const supabase = await createClient();
+
+    
   
-    
-    // // Vérifier d'abord si la fonction RPC existe
-    // const { data: rpcExists, error: rpcCheckError } = await supabase
-    //   .rpc('get_paiements_eleves_supprimes');
-      
-    
-    // // Récupérer les paiements directement de la table pour vérifier
-    // const { data: paiementsDirect, error: directError } = await supabase
-    //   .from('paiements_eleves')
-    //   .select('*')
-    //   .not('eleve_deleted_id', 'is', null);
-      
     
     // Utiliser la fonction RPC pour récupérer les paiements des élèves supprimés
     const { data: paiements, error } = await supabase

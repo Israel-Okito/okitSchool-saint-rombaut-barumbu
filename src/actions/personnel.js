@@ -7,6 +7,15 @@ export async function createPersonnel(formData) {
   const supabase = await createClient();
   
   try {
+    const { data: anneeActive, error: anneeError } = await supabase
+    .from('annee_scolaire')
+    .select('id')
+    .eq('est_active', true)
+    .single();
+
+  if (anneeError || !anneeActive) {
+    throw new Error("Aucune année scolaire active n'a été trouvée");
+  }
     // Construction des données à insérer
     const insertData = {
       nom: formData.nom,
@@ -18,6 +27,7 @@ export async function createPersonnel(formData) {
       sexe: formData.sexe || null,
       date_naissance: formData.date_naissance || null,
       lieu_naissance: formData.lieu_naissance || null,
+      annee_scolaire_id: anneeActive.id
     };
     
     // N'ajouter le user_id que s'il est fourni
