@@ -1,23 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
-
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  {
-    auth: { persistSession: false },
-    db: { schema: 'public' }
-  }
-);
-
-
-export const revalidate = 3; // Revalider le cache toutes les 3 secondes
+export const dynamic = 'force-dynamic'; // Force le recalcul de la route à chaque demande
+export const revalidate = 0; // Désactive le cache intégré de Next.js
 
 export async function GET() {
   try {
+    const supabase = await createClient();
     
-    const { data, error } = await adminClient
+    const { data, error } = await supabase
       .from('annee_scolaire')
       .select('*')
       .order('date_debut', { ascending: false });
@@ -27,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ 
         success: false, 
         error: "Impossible de récupérer les années scolaires: " + error.message
-      });
+      }, { status: 500 });
     }
 
     return NextResponse.json({ 
@@ -35,7 +26,9 @@ export async function GET() {
       data: data || []
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10'
+        'Cache-Control': 'no-store, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     });
   } catch (error) {

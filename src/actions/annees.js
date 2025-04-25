@@ -202,32 +202,3 @@ export async function getAnnees() {
     };
   }
 }
-
-// Nouvelle fonction pour récupérer les statistiques d'une année scolaire
-export async function getAnneeStats(id) {
-  try {
-    const response = await fetch(`/api/bypass-rls/annees/stats?id=${id}`, {
-      method: 'GET',
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Erreur lors de la récupération des statistiques');
-    }
-
-    return {
-      success: true,
-      annee: data.annee,
-      stats: data.stats
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-} 
