@@ -133,7 +133,7 @@ export function generateReceipt(data) {
   doc.setFont('helvetica', 'normal');
   doc.text("REÇU DE : ", 63, 95);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${eleveName} GRADE ${classe}`, 90, 95);
+  doc.text(`${eleveName} en  ${classe}`, 90, 95);
   
   // Somme en lettres
 doc.setFont('helvetica', 'normal');

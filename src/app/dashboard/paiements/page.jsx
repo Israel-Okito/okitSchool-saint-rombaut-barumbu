@@ -78,7 +78,8 @@ export default function PaiementsPage() {
   const { 
     data: elevesData,
     isLoading: elevesLoading,
-    error: elevesError
+    error: elevesError,
+    refetch: refetchEleves
   } = useQuery({
     queryKey: ['eleves-all'],
     queryFn: async () => {
@@ -218,16 +219,23 @@ export default function PaiementsPage() {
     }
   }, [role, user]);
 
-  // Fonction pour récupérer les noms d'utilisateur
-  const fetchUserNames = useCallback(async (paiements) => {
+   // Fonction pour récupérer les noms d'utilisateur
+   const fetchUserNames = useCallback(async (paiements) => {
     if (!paiements || paiements.length === 0) return;
+    
+    // Vérifier si nous avons déjà tous les noms d'utilisateurs nécessaires
+    const needsFetch = paiements.some(p => 
+      p.user_id && !p.user_nom && !userCache.has(p.user_id)
+    );
+    
+    if (!needsFetch) return;
     
     const supabase = createClient();
     
     // Extraire tous les user_ids uniques qui ne sont pas déjà dans le cache
     const userIds = [...new Set(
       paiements
-        .filter(p => p.user_id && !userCache.has(p.user_id))
+        .filter(p => p.user_id && !p.user_nom && !userCache.has(p.user_id))
         .map(p => p.user_id)
     )];
     
@@ -252,19 +260,6 @@ export default function PaiementsPage() {
         }
       } catch (error) {
         console.error('Erreur lors de la récupération des noms d\'utilisateurs:', error);
-      }
-    } else {
-      // Utiliser le cache pour les IDs déjà connus
-      const newUserNames = {...userNames};
-      
-      paiements.forEach(p => {
-        if (p.user_id && userCache.has(p.user_id) && !newUserNames[p.user_id]) {
-          newUserNames[p.user_id] = userCache.get(p.user_id);
-        }
-      });
-      
-      if (Object.keys(newUserNames).length > Object.keys(userNames).length) {
-        setUserNames(newUserNames);
       }
     }
   }, [userNames]);
@@ -482,10 +477,11 @@ export default function PaiementsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitLoading(true)
+    setSubmitLoading(true);
     
     if (!formData.eleve_id || !formData.date || !formData.montant || !formData.type) {
       toast.error('Veuillez remplir tous les champs obligatoires');
+      setSubmitLoading(false);
       return;
     }
 
@@ -508,34 +504,28 @@ export default function PaiementsPage() {
         setReceiptDialogOpen(true);
       }
  
- 
       setDialogOpen(false);
       resetForm();
       
-      // Rafraîchir les données de paiements, les statistiques et invalider le cache
+      // CORRECTION : Forcer la mise à jour des données
+      // 1. Invalider le cache des élèves si nécessaire
+      cache.eleves = null;
+      
+      // 2. Rafraîchir toutes les données en parallèle
       await Promise.all([
         refetchPaiements(),
-        refetchStats()
+        refetchStats(),
+        refetchEleves() // Ajouter le refetch des élèves
       ]);
       
-      // Mettre à jour les données filtrées
-      if (paiementsData?.data) {
-        const updatedData = [...paiementsData.data];
-        if (isEditing) {
-          const index = updatedData.findIndex(p => p.id === selectedPaiement.id);
-          if (index !== -1) {
-            updatedData[index] = { ...selectedPaiement, ...formData };
-          }
-        } else {
-          updatedData.unshift({ ...formData, id: result.data.id });
-        }
-        setFilteredPaiements(updatedData);
-      }
+      // 3. Attendre un court délai pour s'assurer que les données sont synchronisées
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
     } catch (error) {
       console.error(`Erreur lors de ${isEditing ? 'la modification' : 'l\'ajout'} du paiement:`, error);
       toast.error(`Impossible de ${isEditing ? 'modifier' : 'créer'} le paiement: ${error.message}`);
-    }finally{
-      setSubmitLoading(false)
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -553,11 +543,17 @@ export default function PaiementsPage() {
 
       toast.success(result.message || 'Paiement supprimé avec succès');
       
-      // Rafraîchir les données et les statistiques
+      // CORRECTION : Même logique pour la suppression
+      cache.eleves = null;
+      
       await Promise.all([
         refetchPaiements(),
-        refetchStats()
+        refetchStats(),
+        refetchEleves()
       ]);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
     } catch (error) {
       console.error("Erreur lors de la suppression du paiement:", error);
       toast.error(`Impossible de supprimer le paiement: ${error.message}`);
@@ -927,8 +923,8 @@ export default function PaiementsPage() {
                       // Trouver l'élève correspondant au paiement
                       const eleve = elevesData?.data?.find(e => e && e.id === paiement?.eleve_id);
                     return (
-                      <TableRow key={paiement.id}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
-                        <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : '-'}</TableCell>
+                      <TableRow key={`${paiement.id}-${index}`}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
+                        <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : 'Élève non trouvé'}</TableCell>
                         <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
                         <TableCell>{paiement.montant} $</TableCell>
                       <TableCell>
@@ -951,10 +947,17 @@ export default function PaiementsPage() {
                         <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-2">
                               {/* S'assurer que toutes les données nécessaires sont présentes pour le reçu */}
-                              {eleve && (
+                              {eleve && paiement && (
                                 <ReceiptButton 
                                   receiptData={{
-                                    eleve,
+                                    eleve: {
+                                      ...eleve,
+                                      // S'assurer que les données de classe sont présentes
+                                      classes: eleve.classes || eleve.classe || { 
+                                        nom: 'Classe non définie', 
+                                        frais_scolaire: 0 
+                                      }
+                                    },
                                     paiement, 
                                     anneeScolaire: anneeActive?.data || { 
                                       libelle: 'Année en cours'
@@ -1058,7 +1061,6 @@ export default function PaiementsPage() {
                         paiement: receiptData.paiement,
                         anneeScolaire: receiptData.anneeScolaire
                       }}
-                      // receiptData={receiptData}
                       variant="outline"
                       size="default"
                       text="Télécharger le reçu"
@@ -1107,4 +1109,4 @@ export default function PaiementsPage() {
       )}
     </div>
   );
-} 
+}
