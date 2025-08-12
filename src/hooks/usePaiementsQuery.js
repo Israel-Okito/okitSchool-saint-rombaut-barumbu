@@ -1,4 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createPaiement, updatePaiement, deletePaiement } from '@/actions/paiements';
+import { toast } from 'sonner';
 
 const fetchPaiements = async ({ page = 1, limit = 10, search = '', classeId = '', elevesIds = [], dateDebut = '', dateFin = '' }) => {
   const queryParams = new URLSearchParams({
@@ -75,6 +77,28 @@ const fetchPaiements = async ({ page = 1, limit = 10, search = '', classeId = ''
   }
 };
 
+// Fonction pour récupérer les paiements d'un élève spécifique
+const fetchPaiementsEleve = async (eleveId) => {
+  if (!eleveId) {
+    throw new Error("L'identifiant de l'élève est requis");
+  }
+  
+  try {
+    // Utiliser directement server action pour récupérer les paiements de l'élève
+    const { getPaiementsEleve } = await import('@/actions/paiements');
+    const result = await getPaiementsEleve(eleveId);
+    
+    if (!result.success) {
+      throw new Error(result.error || "Erreur lors de la récupération des paiements de l'élève");
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Erreur fetchPaiementsEleve:', error);
+    throw error;
+  }
+};
+
 export function usePaiementsQuery({ 
   page = 1, 
   limit = 10, 
@@ -95,5 +119,141 @@ export function usePaiementsQuery({
     retryDelay: 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+  });
+}
+
+/**
+ * Hook pour récupérer les paiements d'un élève spécifique
+ * @param {string} eleveId - ID de l'élève
+ * @param {Object} options - Options de configuration
+ * @returns {Object} Résultat de la requête
+ */
+export function usePaiementsEleveQuery(eleveId, options = {}) {
+  return useQuery({
+    queryKey: ['paiements-eleve', eleveId],
+    queryFn: () => fetchPaiementsEleve(eleveId),
+    enabled: !!eleveId && (options.enabled !== false),
+    staleTime: options.staleTime || 30 * 1000, // 30 secondes par défaut
+    retry: 1,
+    refetchOnWindowFocus: options.refetchOnWindowFocus !== undefined 
+      ? options.refetchOnWindowFocus 
+      : true,
+    refetchOnMount: options.refetchOnMount !== undefined 
+      ? options.refetchOnMount 
+      : true,
+    // Transformer les données si nécessaire
+    select: (data) => ({
+      ...data,
+      // Compatibilité avec l'ancien format si besoin
+      data: {
+        paiements: data.paiements,
+        stats: {
+          total: data.stats.total,
+          par_type: data.stats.parType
+        }
+      }
+    })
+  });
+}
+
+/**
+ * Hook pour créer un paiement avec invalidation automatique des caches
+ */
+export function useCreatePaiementMutation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (formData) => createPaiement(formData),
+    onSuccess: (result, variables) => {
+      if (!result.success) {
+        throw new Error(result.error || "Échec de la création du paiement");
+      }
+      
+      // Invalider toutes les requêtes de paiements pour actualisation complète
+      queryClient.invalidateQueries({ queryKey: ['paiements'] });
+      queryClient.invalidateQueries({ queryKey: ['paiements-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['eleves-all'] });
+      
+      // Invalider spécifiquement les paiements de cet élève
+      if (variables.eleve_id) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['paiements-eleve', variables.eleve_id] 
+        });
+      }
+      
+      return result;
+    },
+    onError: (error) => {
+      toast.error(`Erreur: ${error.message}`);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Hook pour mettre à jour un paiement avec invalidation automatique des caches
+ */
+export function useUpdatePaiementMutation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (formData) => updatePaiement(formData),
+    onSuccess: (result, variables) => {
+      if (!result.success) {
+        throw new Error(result.error || "Échec de la mise à jour du paiement");
+      }
+      
+      // Invalider toutes les requêtes de paiements pour actualisation complète
+      queryClient.invalidateQueries({ queryKey: ['paiements'] });
+      queryClient.invalidateQueries({ queryKey: ['paiements-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['eleves-all'] });
+      
+      // Invalider spécifiquement les paiements de cet élève
+      if (variables.eleve_id) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['paiements-eleve', variables.eleve_id] 
+        });
+      }
+      
+      return result;
+    },
+    onError: (error) => {
+      toast.error(`Erreur: ${error.message}`);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Hook pour supprimer un paiement avec invalidation automatique des caches
+ */
+export function useDeletePaiementMutation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id) => deletePaiement(id),
+    onSuccess: (result, _id, context) => {
+      if (!result.success) {
+        throw new Error(result.error || "Échec de la suppression du paiement");
+      }
+      
+      // Invalider toutes les requêtes de paiements pour actualisation complète
+      queryClient.invalidateQueries({ queryKey: ['paiements'] });
+      queryClient.invalidateQueries({ queryKey: ['paiements-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['eleves-all'] });
+      
+      // Si le contexte contient l'ID de l'élève, invalider ses paiements spécifiques
+      if (context?.eleveId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['paiements-eleve', context.eleveId] 
+        });
+      }
+      
+      return result;
+    },
+    onError: (error) => {
+      toast.error(`Erreur: ${error.message}`);
+      throw error;
+    }
   });
 }

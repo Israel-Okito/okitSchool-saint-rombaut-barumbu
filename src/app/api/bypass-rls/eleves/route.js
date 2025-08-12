@@ -52,13 +52,14 @@ export async function GET(request) {
         nom,
         prenom,
         postnom,
+        user_nom,
         responsable, 
         date_naissance, 
         adresse, 
         telephone, 
         lieu_naissance, 
         sexe, 
-        classe_id, classes(id, nom, niveau)
+        classe_id, classes(id, nom, niveau, frais_scolaire)
         `, { count: 'exact' })
         .eq('annee_scolaire_id', annee_scolaire_id)
     

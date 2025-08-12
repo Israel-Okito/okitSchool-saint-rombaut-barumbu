@@ -182,7 +182,7 @@ export default function HistoriquePaiementsElevePage() {
             </p>
           </div>
         </div>
-        
+{/*         
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -193,7 +193,7 @@ export default function HistoriquePaiementsElevePage() {
             <Download className="h-4 w-4 mr-2" />
             Exporter CSV
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {estSupprime && (

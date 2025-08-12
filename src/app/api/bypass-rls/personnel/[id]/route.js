@@ -30,7 +30,9 @@ export async function GET(request, context) {
         adresse,
         sexe,
         date_naissance,
-        lieu_naissance`)
+        lieu_naissance,
+        user_id,
+        user_nom`)
       .eq('id', id)
       .maybeSingle();
 

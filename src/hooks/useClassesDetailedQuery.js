@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-const fetchClasses = async ({ page = 1, limit = 10, search = '', niveau = '' }) => {
+const fetchClasses = async ({ page = 1, limit = 10, search = '', nom = '' }) => {
  
   const queryParams = new URLSearchParams({
     page: page.toString(),
@@ -11,8 +11,8 @@ const fetchClasses = async ({ page = 1, limit = 10, search = '', niveau = '' }) 
     queryParams.append('search', search);
   }
   
-  if (niveau) {
-    queryParams.append('niveau', niveau);
+  if (nom) {
+    queryParams.append('nom', nom);
   }
   
   const response = await fetch(`/api/bypass-rls/classes?${queryParams.toString()}`);
@@ -24,10 +24,10 @@ const fetchClasses = async ({ page = 1, limit = 10, search = '', niveau = '' }) 
   return response.json();
 };
 
-export function useClassesDetailedQuery({ page = 1, limit = 10, search = '', niveau = '', enabled = true }) {
+export function useClassesDetailedQuery({ page = 1, limit = 10, search = '', nom = '', enabled = true }) {
   return useQuery({
-    queryKey: ['classes-detailed', { page, limit, search, niveau }],
-    queryFn: () => fetchClasses({ page, limit, search, niveau }),
+    queryKey: ['classes-detailed', { page, limit, search, nom }],
+    queryFn: () => fetchClasses({ page, limit, search, nom }),
     enabled,
     keepPreviousData: true,
     staleTime: 60 * 1000, 

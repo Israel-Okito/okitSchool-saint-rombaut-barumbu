@@ -14,7 +14,16 @@ export async function GET(req, context) {
     const { data: classe, error: classeError } = await supabase
       .from('classes')
       .select(`
-        *,
+        id,
+        nom,
+        niveau,
+        titulaire_id,
+        annee_scolaire_id,
+        frais_scolaire,
+        created_at,
+        updated_at,
+        user_id,
+        user_nom,
         titulaire:titulaire_id (id, nom, prenom)
       `)
       .eq('id', id)
@@ -42,6 +51,13 @@ export async function GET(req, context) {
       console.error('Erreur élèves:', elevesError);
       throw new Error('Erreur lors de la récupération des élèves');
     }
+
+    // Calculer les statistiques par genre
+    const genderStats = {
+      maleCount: eleves.filter(eleve => eleve.sexe === 'M').length,
+      femaleCount: eleves.filter(eleve => eleve.sexe === 'F').length,
+      totalCount: eleves.length
+    };
 
     // Récupérer tous les paiements de type scolarité pour les élèves de cette classe
     let paiements = [];
@@ -119,7 +135,8 @@ export async function GET(req, context) {
         eleves: elevesEnrichis,
         elevesPaies,
         elevesNonPaies,
-        paiements
+        paiements,
+        genderStats
       }
     });
   } catch (error) {

@@ -1,4 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { copyClassesFromYear } from '@/actions/annees';
 
 const fetchAnnees = async () => {
   // Requête pour obtenir la liste des années
@@ -40,6 +42,31 @@ export function useAnneeActiveQuery() {
     retry: 3,
     onError: (error) => {
       console.error('useAnneeActiveQuery - Erreur:', error);
+    }
+  });
+}
+
+/**
+ * Hook pour copier les classes d'une année à une autre
+ */
+export function useCopyClassesMutation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ sourceYearId, targetYearId }) => 
+      copyClassesFromYear(sourceYearId, targetYearId),
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(data.message);
+        // Invalider les requêtes pour les classes et années
+        queryClient.invalidateQueries({ queryKey: ['classes'] });
+        queryClient.invalidateQueries({ queryKey: ['annees'] });
+      } else {
+        toast.error(data.error || "Échec de la copie des classes");
+      }
+    },
+    onError: (error) => {
+      toast.error(`Erreur: ${error.message}`);
     }
   });
 } 

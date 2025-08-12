@@ -30,7 +30,7 @@ export const captureUserDetails = async () => {
     // Récupérer les infos depuis la table "users"
     const { data: userDetails, error: profileError } = await supabase
       .from('users')
-      .select('id, role, nom, email') 
+      .select('id, role, nom, email, is_active') 
       .eq('id', user.id)
       .single();
 
@@ -76,6 +76,13 @@ export const auth = {
       if (data.user) {
         const details = await captureUserDetails();
         
+        // Vérifier si l'utilisateur est actif
+        if (details && details.is_active === false) {
+          // Déconnecter immédiatement l'utilisateur
+          await supabase.auth.signOut();
+          throw new Error("Votre compte a été désactivé. Veuillez contacter l'administrateur.");
+        }
+        
         // Stockage des infos en localStorage de manière cohérente
         if (details) {
           // Stocker les données de manière cohérente
@@ -86,6 +93,7 @@ export const auth = {
               nom: details.nom,
             },
             role: details.role || null,
+            is_active: details.is_active
           };
           
           localStorage.setItem('userData', JSON.stringify(userData));

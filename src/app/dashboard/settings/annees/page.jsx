@@ -5,13 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createAnnee, updateAnnee, deleteAnnee } from '@/actions/annees';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAnneeActiveQuery } from '@/hooks/useAnneeActiveQuery';
+import { useAnneeActiveQuery, useCopyClassesMutation } from '@/hooks/useAnneeActiveQuery';
+import { Copy, AlertTriangle, Loader2 } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
+import { PlusCircle } from 'lucide-react';
+
 
 export default function AnneesPage() {
   const [annees, setAnnees] = useState([]);
@@ -19,20 +24,30 @@ export default function AnneesPage() {
   const [error, setError] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [formData, setFormData] = useState({
     libelle: '',
     date_debut: '',
     date_fin: '',
-    est_active: false
+    est_active: false,
+    copyClassesFrom: ''
   });
   const queryClient = useQueryClient();
-
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [sourceAnneeId, setSourceAnneeId] = useState('');
+  const [targetAnneeId, setTargetAnneeId] = useState('');
+  
   const { 
     data: anneesData,
     isLoading: isAnneesLoading,
     isError: isAnneesError,
     error: anneesError
   } = useAnneeActiveQuery();
+
+  const { mutate: copyClasses, isPending: isCopying } = useCopyClassesMutation();
+
+  const {role} = useUser();
+
 
   useEffect(() => {
     if (anneesData?.success) {
@@ -67,7 +82,8 @@ export default function AnneesPage() {
         libelle: annee.libelle,
         date_debut: annee.date_debut,
         date_fin: annee.date_fin,
-        est_active: annee.est_active
+        est_active: annee.est_active,
+        copyClassesFrom: ''
       });
     } else {
       setEditing(false);
@@ -75,7 +91,8 @@ export default function AnneesPage() {
         libelle: '',
         date_debut: '',
         date_fin: '',
-        est_active: false
+        est_active: false,
+        copyClassesFrom: ''
       });
     }
     setDialogOpen(true);
@@ -83,6 +100,7 @@ export default function AnneesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitLoading(true);
     try {
       const response = editing 
         ? await updateAnnee(formData)
@@ -97,7 +115,9 @@ export default function AnneesPage() {
         throw new Error(response.error);
       }
     } catch (error) {
-      toast.error("Impossible de modifier ou d'ajouter l'année scolaire: " + error.message);
+      toast.error("Impossible de modifier ou d'ajouter l'année scolaire ou il y'a déjà un meme libellé d'année : " + error.message);
+    }finally{
+      setSubmitLoading(false);
     }
   };
 
@@ -138,6 +158,30 @@ Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr de vouloir continuer 
     }
   };
 
+  // Fonction pour gérer la copie des classes
+  const handleCopyClasses = () => {
+    if (!sourceAnneeId || !targetAnneeId) {
+      toast.error("Veuillez sélectionner une année source et une année cible");
+      return;
+    }
+    
+    if (sourceAnneeId === targetAnneeId) {
+      toast.error("L'année source et l'année cible doivent être différentes");
+      return;
+    }
+    
+    copyClasses({ 
+      sourceYearId: sourceAnneeId, 
+      targetYearId: targetAnneeId 
+    }, {
+      onSuccess: () => {
+        setCopyDialogOpen(false);
+        setSourceAnneeId('');
+        setTargetAnneeId('');
+      }
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-4 p-10">
@@ -172,83 +216,199 @@ Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr de vouloir continuer 
 
   return (
     <div className="space-y-6 p-5">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col items-start gap-5">
         <h1 className="text-2xl font-bold">Années Scolaires</h1>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              Ajouter une année
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editing ? 'Modifier une année' : 'Ajouter une année'}
-              </DialogTitle>
-              <DialogDescription>
-                  {editing ? ' Remplis les champs ci-dessous pour modifier les informations de cette année ' : ' Remplis les champs ci-dessous pour Ajouter une nouvelle année '}
+        <div className="flex max-sm:flex-col gap-2">
+          <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Copy className="h-4 w-4 " />
+                Copier les classes
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Copier les classes d'une année à une autre</DialogTitle>
+                <DialogDescription>
+                  Sélectionnez une année source et une année cible pour copier toutes les classes de l'année source vers l'année cible.
                 </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="libelle">Libellé</Label>
-                <Input
-                  id="libelle"
-                  name="libelle"
-                  value={formData.libelle}
-                  onChange={handleFormChange}
-                  placeholder="exemple:2024-2025"
-                  required
-                />
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="source-annee">Année source</Label>
+                  <Select 
+                    value={sourceAnneeId} 
+                    onValueChange={setSourceAnneeId}
+                  >
+                    <SelectTrigger id="source-annee">
+                      <SelectValue placeholder="Sélectionner l'année source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {annees.map(annee => (
+                        <SelectItem key={annee.id} value={annee.id.toString()}>
+                          {annee.libelle} {annee.est_active && '(Active)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="target-annee">Année cible</Label>
+                  <Select 
+                    value={targetAnneeId} 
+                    onValueChange={setTargetAnneeId}
+                  >
+                    <SelectTrigger id="target-annee">
+                      <SelectValue placeholder="Sélectionner l'année cible" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {annees.map(annee => (
+                        <SelectItem key={annee.id} value={annee.id.toString()}>
+                          {annee.libelle} {annee.est_active && '(Active)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-md text-amber-800 dark:text-amber-200 text-sm">
+                  <AlertTriangle className="h-4 w-4 inline mr-1" />
+                  Cette action copiera seulement les noms et niveaux des classes. Les titulaires et les élèves ne seront pas copiés.
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="date_debut">Date de début</Label>
-                <Input
-                  id="date_debut"
-                  name="date_debut"
-                  type="date"
-                  value={formData.date_debut}
-                  onChange={handleFormChange}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date_fin">Date de fin</Label>
-                <Input
-                  id="date_fin"
-                  name="date_fin"
-                  type="date"
-                  value={formData.date_fin}
-                  onChange={handleFormChange}
-                  required
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="est_active"
-                  name="est_active"
-                  checked={formData.est_active}
-                  onChange={handleFormChange}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="est_active">Année active</Label>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                >
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCopyDialogOpen(false)} disabled={isCopying}>
                   Annuler
                 </Button>
-                <Button type="submit">
-                  {editing ? 'Modifier' : 'Ajouter'}
+                <Button onClick={handleCopyClasses} disabled={isCopying || !sourceAnneeId || !targetAnneeId}>
+                  {isCopying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Copie en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copier les classes
+                    </>
+                  )}
                 </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()}>
+                <PlusCircle/>
+                 Ajouter une année
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editing ? 'Modifier une année' : 'Ajouter une année'}
+                </DialogTitle>
+                <DialogDescription>
+                    {editing ? ' Remplis les champs ci-dessous pour modifier les informations de cette année ' : ' Remplis les champs ci-dessous pour Ajouter une nouvelle année '}
+                  </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="libelle">Libellé</Label>
+                  <Input
+                    id="libelle"
+                    name="libelle"
+                    value={formData.libelle}
+                    onChange={handleFormChange}
+                    placeholder="exemple:2024-2025"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date_debut">Date de début</Label>
+                  <Input
+                    id="date_debut"
+                    name="date_debut"
+                    type="date"
+                    value={formData.date_debut}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date_fin">Date de fin</Label>
+                  <Input
+                    id="date_fin"
+                    name="date_fin"
+                    type="date"
+                    value={formData.date_fin}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="est_active"
+                    name="est_active"
+                    checked={formData.est_active}
+                    onChange={handleFormChange}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="est_active">Année active</Label>
+                </div>
+                {!editing && (
+                  <div className="space-y-2">
+                    <Label htmlFor="copyClassesFrom">Copier les classes d'une année existante (optionnel)</Label>
+                    <Select 
+                      value={formData.copyClassesFrom} 
+                      onValueChange={(value) => setFormData({...formData, copyClassesFrom: value})}
+                    >
+                      <SelectTrigger id="copyClassesFrom">
+                        <SelectValue placeholder="Sélectionner une année source (optionnel)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ne pas copier de classes">Ne pas copier de classes</SelectItem>
+                        {annees.map(annee => (
+                          <SelectItem key={annee.id} value={annee.id.toString()}>
+                            {annee.libelle} {annee.est_active && '(Active)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formData.copyClassesFrom && (
+                      <p className="text-sm text-muted-foreground">
+                        Les classes de l'année sélectionnée seront automatiquement copiées dans la nouvelle année. Les titulaires ne seront pas affectés.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                  >
+                    Annuler
+                  </Button>
+                  
+                  <Button type="submit" disabled={submitLoading}>
+                    {submitLoading
+                      ? 'Enregistrement...'
+                      : editing
+                        ? 'Modifier'
+                        : 'Ajouter'}
+                  </Button>
+
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -274,27 +434,40 @@ Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr de vouloir continuer 
                   <span className="font-semibold">Fin:</span>{' '}
                   {format(new Date(annee.date_fin), 'PPP', { locale: fr })}
                 </p>
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenDialog(annee)}
-                  >
-                    Modifier
-                  </Button>
-                     <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(annee.id, annee.libelle)}
-                  >
-                    Supprimer
-                  </Button>
-                </div>
+                 {(role === 'directeur' || role === 'admin') &&(
+                    <div className="flex justify-end space-x-2 pt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDialog(annee)}
+                        >
+                          Modifier
+                        </Button>
+                           <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(annee.id, annee.libelle)}
+                        >
+                          Supprimer
+                        </Button>
+                   </div>
+                   )
+                  }
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <div className="bg-muted p-4 rounded-xl border mt-28">
+  <h3 className="text-lg font-semibold mb-2">📝 Instruction</h3>
+  <p className="text-sm text-muted-foreground">
+    L&apos;option <strong>"Copier les classes"</strong> permet, lors de la création d&apos;une nouvelle année scolaire, de <u>ramener automatiquement toutes les classes</u> de l&apos;année précédente <u>sans leurs titulaires ni leurs élèves</u>.  
+    Cela évite de recréer manuellement chaque classe pour la nouvelle année.
+  </p>
+</div>
+
+
     </div>
   );
 } 

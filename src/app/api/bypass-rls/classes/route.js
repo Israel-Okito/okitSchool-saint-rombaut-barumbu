@@ -50,7 +50,17 @@ export async function GET(request) {
     // Construire la requête de base
     let query = adminClient
       .from('classes')
-      .select('id, nom, niveau, titulaire_id', { count: 'exact' });
+      .select(`
+        id, 
+        nom, 
+        niveau, 
+        titulaire_id, 
+        created_at, 
+        updated_at, 
+        user_id,
+        frais_scolaire,
+        user_nom
+      `, { count: 'exact' });
     
     // Ajouter le filtre d'année active si elle existe
     if (annee_scolaire_id) {

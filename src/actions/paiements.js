@@ -9,7 +9,7 @@ export async function createPaiement(formData) {
   try {
     const { data: anneeActive, error: anneeError } = await supabase
       .from('annee_scolaire')
-      .select('id')
+      .select('id, libelle')
       .eq('est_active', true)
       .single();
 
@@ -28,7 +28,7 @@ export async function createPaiement(formData) {
     // Vérifier que l'élève existe et n'est pas supprimé
     const { data: eleve, error: eleveError } = await supabase
       .from('eleves')
-      .select('id')
+      .select('id, nom, prenom, postnom, classe_id, classes(id, nom)')
       .eq('id', formData.eleve_id)
       .single();
       
@@ -52,9 +52,21 @@ export async function createPaiement(formData) {
       annee_scolaire_id: anneeActive.id
     };
 
-    // N'ajouter le user_id que s'il est fourni
+    // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni
     if (formData.user_id) {
       dataToInsert.user_id = formData.user_id;
+      
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToInsert.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
     }
     
 
@@ -66,9 +78,29 @@ export async function createPaiement(formData) {
 
     if (error) throw error;
     
+    // Invalider les chemins concernés pour forcer le rechargement des données
     revalidatePath('/dashboard/paiements');
+    revalidatePath(`/dashboard/eleves/${formData.eleve_id}/paiements`);
+    revalidatePath(`/dashboard/eleves/${formData.eleve_id}`);
+    
+    // Également invalider les chemins liés à la classe de l'élève
+    if (eleve.classe_id) {
+      revalidatePath(`/dashboard/classes/${eleve.classe_id}`);
+    }
 
-    return { success: true, data, message: 'Paiement ajouté avec succès' };
+    // Données pour le reçu
+    const receiptData = {
+      eleve,
+      paiement: data,
+      anneeScolaire: anneeActive
+    };
+
+    return { 
+      success: true, 
+      data, 
+      message: 'Paiement ajouté avec succès',
+      receiptData  // Retourner les données pour le reçu
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -99,17 +131,35 @@ export async function updatePaiement(formData) {
       throw new Error('Le montant doit être un nombre valide');
     }
     
+    // Données à mettre à jour
+    const dataToUpdate = {
+      eleve_id: formData.eleve_id,
+      montant: montantValue,
+      date: formData.date,
+      type: formData.type,
+      description: formData.description || '',
+      user_id: formData.user_id
+    };
+    
+    // Récupérer et stocker le nom de l'utilisateur qui fait la modification
+    if (formData.user_id) {
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToUpdate.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
+    }
+    
     // Mettre à jour le paiement
     const { data, error } = await supabase
       .from('paiements_eleves')
-      .update({
-        eleve_id: formData.eleve_id,
-        montant: montantValue,
-        date: formData.date,
-        type: formData.type,
-        description: formData.description || '',
-        user_id: formData.user_id
-      })
+      .update(dataToUpdate)
       .eq('id', formData.id)
       .select()
       .single();
@@ -144,6 +194,16 @@ export async function deletePaiement(id) {
     if (!existingPaiement) {
       throw new Error('Paiement non trouvé');
     }
+
+    // Copier le paiement dans la table historique
+    const { error: historyError } = await supabase
+      .from('paiements_eleves_deleted')
+      .insert([{
+        ...existingPaiement,
+        deleted_at: new Date().toISOString()
+      }]);
+
+    if (historyError) throw historyError;
 
     // Suppression du paiement
     const { error } = await supabase
@@ -185,15 +245,15 @@ export async function getPaiementsEleve(eleve_id) {
       throw new Error("L'identifiant de l'élève est requis");
     }
 
-    const { data:  annee_scolaire_id, error: anneeError } = await supabase
-    .from('annee_scolaire')
-    .select('id')
-    .eq('est_active', true)
-    .single();
+    const { data: anneeActive, error: anneeError } = await supabase
+      .from('annee_scolaire')
+      .select('id, libelle')
+      .eq('est_active', true)
+      .single();
 
-   if (anneeError || !annee_scolaire_id) {
-    throw new Error("Aucune année scolaire active n'a été trouvée");
-   }
+    if (anneeError || !anneeActive) {
+      throw new Error("Aucune année scolaire active n'a été trouvée");
+    }
     
     // Vérifier si l'élève existe encore ou s'il a été supprimé
     const { data: eleveActif, error: eleveError } = await supabase
@@ -204,7 +264,7 @@ export async function getPaiementsEleve(eleve_id) {
       
     const { data: eleveSupprimes, error: supprimesError } = await supabase
       .from('eleves_deleted')
-      .select('id, eleve_id, nom, prenom, postnom, classe_id, deleted_at')
+      .select('id, eleve_id, nom, prenom, postnom, user_nom, classe_id, deleted_at')
       .eq('eleve_id', eleve_id)
       .maybeSingle();
       
@@ -251,6 +311,7 @@ export async function getPaiementsEleve(eleve_id) {
       estSupprime: !eleveActif && !!eleveSupprimes,
       dateSuppression: eleveSupprimes?.deleted_at || null,
       paiements,
+      anneeScolaire: anneeActive,
       stats: {
         total,
         par_type: parType,
@@ -260,5 +321,172 @@ export async function getPaiementsEleve(eleve_id) {
   } catch (error) {
     console.error('Erreur lors de la récupération des paiements de l\'élève:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Récupère les détails d'un paiement spécifique
+ */
+export async function getPaiementDetails(paiement_id) {
+  try {
+    
+    
+    if (!paiement_id) {
+      throw new Error("L'identifiant du paiement est requis");
+    }
+    
+    // Utiliser directement Supabase au lieu de l'API pour éviter les problèmes d'authentification
+    const supabase = await createClient();
+    
+    // Récupérer le paiement principal avec les informations de l'élève
+    const { data: paiement, error: paiementError } = await supabase
+      .from('paiements_eleves')
+      .select(`
+        *,
+        eleves (
+          id, nom, prenom, postnom, classe_id,
+          classes (
+            id, nom, frais_scolaire
+          )
+        )
+      `)
+      .eq('id', paiement_id)
+      .single();
+    
+    if (paiementError) {
+      console.error('Erreur lors de la récupération du paiement:', paiementError);
+      throw new Error('Erreur lors de la récupération du paiement');
+    }
+    
+    if (!paiement) {
+      throw new Error('Paiement non trouvé');
+    }
+    
+    // // Récupérer les détails du paiement
+    // const { data: details, error: detailsError } = await supabase
+    //   .from('paiements_details')
+    //   .select('*')
+    //   .eq('paiement_id', paiement_id);
+    
+    // if (detailsError) {
+    //   console.error('Erreur lors de la récupération des détails du paiement:', detailsError);
+    //   // Ne pas faire échouer la requête principale si les détails échouent
+    // }
+    
+    // Récupérer l'année scolaire
+    const { data: anneeScolaire, error: anneeError } = await supabase
+      .from('annee_scolaire')
+      .select('id, libelle')
+      .eq('id', paiement.annee_scolaire_id)
+      .single();
+    
+    if (anneeError) {
+      console.error('Erreur lors de la récupération de l\'année scolaire:', anneeError);
+      // Ne pas faire échouer la requête principale si l'année scolaire échoue
+    }
+    
+    // Si le type de paiement est "Paiement multiple" mais qu'aucun détail n'est trouvé,
+    // essayer de créer des détails basés sur le montant et le type
+    let finalDetails = []
+    
+    if (paiement.type === 'Paiement multiple' && (!finalDetails || finalDetails.length === 0)) {
+      
+      // Créer un détail par défaut basé sur le montant total
+      finalDetails = [{
+        id: 0, // ID temporaire
+        paiement_id: paiement_id,
+        type: paiement.type,
+        libelle: paiement.description || 'Paiement multiple',
+        montant: parseFloat(paiement.montant) || 0,
+        created_at: paiement.created_at
+      }];
+    }
+    
+    // Récupérer tous les paiements de l'élève pour calculer le solde des frais scolaires
+    let fraisScolarite = null;
+    if (paiement.eleves && paiement.eleves.id) {
+      // Récupérer l'année scolaire active
+      const { data: anneeActive } = await supabase
+        .from('annee_scolaire')
+        .select('id')
+        .eq('est_active', true)
+        .single();
+        
+      if (anneeActive) {
+        // Récupérer tous les paiements de l'élève pour l'année active
+        const { data: paiementsEleve, error: paiementsEleveError } = await supabase
+          .from('paiements_eleves')
+          .select(`
+            id, 
+            montant, 
+            type
+          `)
+          .eq('eleve_id', paiement.eleves.id)
+          .eq('annee_scolaire_id', anneeActive.id);
+          
+        if (!paiementsEleveError && paiementsEleve) {
+          // Calculer le montant total payé pour la scolarité
+          let montantPaye = 0;
+          
+          // Parcourir tous les paiements de l'élève pour calculer le total payé pour la scolarité
+          paiementsEleve.forEach(p => {
+            if (p.type === 'Scolarite') {
+              montantPaye += parseFloat(p.montant) || 0;
+            }
+          });
+          
+
+          
+          // Récupérer le montant total des frais scolaires
+          let montantTotal = 0;
+          if (paiement.eleves.classes && paiement.eleves.classes.frais_scolaire) {
+            montantTotal = parseFloat(paiement.eleves.classes.frais_scolaire) || 0;
+          }
+          
+          // Calculer le solde restant
+          const montantRestant = Math.max(0, montantTotal - montantPaye);
+          
+          fraisScolarite = {
+            montantTotal,
+            montantPaye,
+            montantRestant
+          };
+          
+
+        }
+      }
+    }
+    
+    // Construire les données complètes pour le reçu
+    const receiptData = {
+      eleve: {
+        ...paiement.eleves,
+        // Assurer la compatibilité avec le format attendu dans le reçu
+        classes: paiement.eleves?.classes || { 
+          nom: paiement.eleves?.classe?.nom || 'N/A', 
+          frais_scolaire: paiement.eleves?.classe?.frais_scolaire || 'N/A' 
+        }
+      },
+      
+      // eleve: paiement.eleves,
+      paiement: {
+        ...paiement,
+        detailsPaiement: finalDetails
+      },
+      anneeScolaire: anneeScolaire || { libelle: 'Année non spécifiée' },
+      fraisScolarite // Ajouter les informations de frais scolaires
+    };
+
+    return { 
+      success: true, 
+      data: receiptData 
+    };
+  } catch (error) {
+    console.error('Erreur lors de la récupération des détails du paiement:', error);
+    return { 
+      success: false, 
+      error: error.message,
+      data: null
+    };
   }
 }

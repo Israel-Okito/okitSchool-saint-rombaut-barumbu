@@ -62,7 +62,8 @@ export async function GET(request) {
         date_naissance,
         lieu_naissance,
         created_at,
-        users:user_id(id, email, role)
+        user_id,
+        user_nom
       `, { count: 'exact' })
       .eq('annee_scolaire_id', annee_scolaire_id)
       

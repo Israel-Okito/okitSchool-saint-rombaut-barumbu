@@ -17,21 +17,41 @@ export async function createEleve(formData) {
       throw new Error("Aucune année scolaire active n'a été trouvée");
     }
 
+    // Données à insérer
+    const dataToInsert = {
+      nom: formData.nom,
+      prenom: formData.prenom,
+      postnom: formData.postnom,
+      responsable: formData.responsable,
+      date_naissance: formData.date_naissance,
+      lieu_naissance: formData.lieu_naissance,
+      sexe: formData.sexe,
+      telephone: formData.telephone,
+      adresse: formData.adresse,
+      classe_id: formData.classe_id,
+      annee_scolaire_id: anneeActive.id
+    };
+
+    // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni
+    if (formData.user_id) {
+      dataToInsert.user_id = formData.user_id;
+      
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToInsert.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
+    }
+
     const { data, error } = await supabase
       .from('eleves')
-      .insert([{
-        nom: formData.nom,
-        prenom: formData.prenom,
-        postnom: formData.postnom,
-        responsable: formData.responsable,
-        date_naissance: formData.date_naissance,
-        lieu_naissance: formData.lieu_naissance,
-        sexe: formData.sexe,
-        telephone: formData.telephone,
-        adresse: formData.adresse,
-        classe_id: formData.classe_id,
-        annee_scolaire_id: anneeActive.id
-      }])
+      .insert([dataToInsert])
       .select();
 
     if (error) throw error;
@@ -47,20 +67,40 @@ export async function updateEleve(formData) {
   const supabase = await createClient();
   
   try {
+    // Données à mettre à jour
+    const dataToUpdate = {
+      nom: formData.nom,
+      prenom: formData.prenom,
+      postnom: formData.postnom,
+      responsable: formData.responsable,
+      date_naissance: formData.date_naissance,
+      lieu_naissance: formData.lieu_naissance,
+      sexe: formData.sexe,
+      telephone: formData.telephone,
+      adresse: formData.adresse,
+      classe_id: formData.classe_id
+    };
+
+    // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni
+    if (formData.user_id) {
+      dataToUpdate.user_id = formData.user_id;
+      
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToUpdate.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
+    }
+
     const { data, error } = await supabase
       .from('eleves')
-      .update({
-        nom: formData.nom,
-        prenom: formData.prenom,
-        postnom: formData.postnom,
-        responsable: formData.responsable,
-        date_naissance: formData.date_naissance,
-        lieu_naissance: formData.lieu_naissance,
-        sexe: formData.sexe,
-        telephone: formData.telephone,
-        adresse: formData.adresse,
-        classe_id: formData.classe_id
-      })
+      .update(dataToUpdate)
       .eq('id', formData.id)
       .select();
 
@@ -72,7 +112,6 @@ export async function updateEleve(formData) {
     return { success: false, error: error.message };
   }
 }
-
 
 export async function deleteEleve(id) {
   const supabase = await createClient();
@@ -104,6 +143,8 @@ export async function deleteEleve(id) {
         adresse: entry.adresse,
         classe_id: entry.classe_id,
         annee_scolaire_id: entry.annee_scolaire_id,
+        user_id: entry.user_id,
+        user_nom: entry.user_nom,
         deleted_at: new Date().toISOString()
       }]);
     

@@ -19,10 +19,12 @@ import {
   FileText, 
   Calendar,
   School,
-  UserCog 
+  UserCog,
+  Settings
 } from "lucide-react"; 
 import { useMemo, useState, useEffect } from "react";
 import { ROUTE_ACCESS_MAP } from "@/lib/routeAccessMap";
+
 
 export function AppSidebar({ userRole }) {
   const pathname = usePathname();
@@ -78,6 +80,7 @@ export function AppSidebar({ userRole }) {
     { title: "Personnel", href: "/dashboard/personnel", icon: UserCog },
     { title: "Paiements", href: "/dashboard/paiements", icon: Wallet },
     { title: "Année-scolaire", href: "/dashboard/settings/annees", icon: Calendar },
+    { title: "Gestion utilisateurs", href: "/dashboard/settings/utilisateurs", icon: Settings },
   ], []);
 
   // Filtrage des items selon les permissions de l'utilisateur
@@ -104,12 +107,14 @@ export function AppSidebar({ userRole }) {
  
   if (userRole === null || !mounted) {
     return (
-      <Sidebar>
+      <Sidebar >
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel className='text-2xl mb-8 '>  
-              <span className="text-blue-700">Saint</span>{'-'}Rombaut
+
+              <span className="text-blue-700 ">Okit</span>{'-'}School
             </SidebarGroupLabel>
+
             <SidebarGroupContent>
               <div className="py-4 px-4">
                 <div className="h-8 w-full bg-gray-200 rounded animate-pulse mb-4" />
@@ -127,9 +132,22 @@ export function AppSidebar({ userRole }) {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className='text-2xl mb-8 '>  
-            <span className="text-blue-700">Saint</span>{'-'}Rombaut
-          </SidebarGroupLabel>
+        <SidebarGroupLabel className="text-2xl mb-8 mt-2">
+        {/* <div style={{ position: 'relative', width: '190px', height: '190px' }}>
+  <Image
+    src="/logo-cartesiens.webp"
+    alt="logo"
+    fill
+    style={{ objectFit: 'contain' }}
+     sizes="(max-width: 768px) 100px, 190px"
+    priority
+  />
+</div> */}
+<h3 className="text-blue-500">Saint Rombaut</h3>
+
+
+         </SidebarGroupLabel>
+
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleMenuItems.map((item, index) => (

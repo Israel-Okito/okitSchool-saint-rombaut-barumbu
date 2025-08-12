@@ -4,17 +4,23 @@ import { createServerClient } from '@supabase/ssr'
 // Routes accessibles sans connexion
 const publicPaths = ['/', '/login', '/unauthorized']
 
+// Routes API qui ne devraient pas rediriger vers la page de connexion
+const apiPaths = ['/api/']
+
 // Définir les rôles autorisés pour chaque route protégée
 const PROTECTED_ROUTES = {
-  '/dashboard': ['admin', 'directeur', 'secretaire', 'comptable', 'caissier'],
-  '/dashboard/personnel': ['admin', 'directeur', 'secretaire'],
-  '/dashboard/eleves': ['admin', 'directeur', 'secretaire'],
-  '/dashboard/paiements': ['admin', 'directeur', 'comptable', 'caissier'],
-  '/dashboard/paiements-supprimes': ['admin', 'directeur'],
-  '/dashboard/journal': ['admin', 'directeur', 'comptable', 'caissier'],
-  '/dashboard/repartition': ['admin', 'directeur', 'comptable', 'caissier'],
-  '/dashboard/classes': ['admin', 'directeur', 'secretaire'],
-  '/dashboard/settings/annees': ['admin', 'directeur'],
+  "/dashboard": ["admin", "directeur", "secretaire", "comptable", "caissier"],
+  "/dashboard/personnel": ["admin", "directeur", "secretaire"],
+  "/dashboard/personnel/attendance": ["admin", "directeur", "secretaire"],
+  "/dashboard/promotions": ["admin", "directeur", "secretaire"],
+  "/dashboard/eleves": ["admin", "directeur", "secretaire"],
+  "/dashboard/paiements": ["admin", "directeur", "comptable", "caissier"],
+  "/dashboard/paiements-supprimes": ["admin", "directeur"],
+  "/dashboard/journal": ["admin", "directeur", "comptable", "caissier"],
+  "/dashboard/repartition": ["admin", "directeur", "comptable", "caissier"],
+  "/dashboard/settings/annees": ["admin", "directeur"],
+  "/dashboard/classes": ["admin", "directeur", "secretaire"],
+  "/dashboard/settings/utilisateurs": ["admin", "directeur"],
 }
 
 export async function updateSession(request) {
@@ -45,12 +51,23 @@ export async function updateSession(request) {
     data: { session },
   } = await supabase.auth.getSession()
 
+  // Vérifier si c'est une route API
+  const isApiPath = apiPaths.some((path) => currentPath.startsWith(path))
+  
+  // Si c'est une route API et qu'il n'y a pas de session, renvoyer une erreur 401 au lieu de rediriger
+  if (!session && isApiPath) {
+    return NextResponse.json(
+      { error: 'Non authentifié', message: 'Vous devez être connecté pour accéder à cette ressource' },
+      { status: 401 }
+    )
+  }
+
   // 1. Rediriger vers /login si pas de session et route privée
   const isPublicPath = publicPaths.some((path) =>
     currentPath === path || currentPath.startsWith(path + '/')
   )
 
-  if (!session && !isPublicPath) {
+  if (!session && !isPublicPath && !isApiPath) {
     const loginUrl = url.clone()
     loginUrl.pathname = '/login'
     loginUrl.searchParams.set('next', currentPath)
@@ -76,7 +93,7 @@ export async function updateSession(request) {
     
       const { data: userProfile, error } = await supabase
         .from('users')
-        .select('role')
+        .select('role, is_active')
         .eq('id', user.id)
         .single()
     
@@ -86,11 +103,20 @@ export async function updateSession(request) {
       }
     
       const userRole = userProfile?.role
+      const isActive = userProfile?.is_active !== false // Par défaut true si null
     
       if (!userRole) {
         // rediriger vers page d'erreur si profil introuvable
         const errorUrl = new URL('/unauthorized', request.url)
         return NextResponse.redirect(errorUrl)
+      }
+      
+      // Vérifier si le compte est actif
+      if (!isActive) {
+        // Déconnecter l'utilisateur et rediriger vers la page d'accueil
+        await supabase.auth.signOut()
+        const homeUrl = new URL('/', request.url)
+        return NextResponse.redirect(homeUrl)
       }
     
       const allowedRoles = PROTECTED_ROUTES[matchedProtectedRoute]

@@ -7,6 +7,7 @@ export async function createAnnee(formData) {
   try {
     const supabase = await createClient();
     
+    // Créer la nouvelle année scolaire
     const { data, error } = await supabase
       .from('annee_scolaire')
       .insert([{
@@ -19,8 +20,43 @@ export async function createAnnee(formData) {
       .single();
 
     if (error) throw error;
+    
+    // Si l'option de copie des classes est activée
+    if (formData.copyClassesFrom && data) {
+      const sourceYearId = formData.copyClassesFrom;
+      
+      // Récupérer les classes de l'année source
+      const { data: sourceClasses, error: classesError } = await supabase
+        .from('classes')
+        .select('id, nom, niveau')
+        .eq('annee_scolaire_id', sourceYearId);
+        
+      if (classesError) {
+        console.error("Erreur lors de la récupération des classes source:", classesError);
+      } else if (sourceClasses && sourceClasses.length > 0) {
+        // Créer des copies des classes pour la nouvelle année
+        const classesToInsert = sourceClasses.map(cls => ({
+          nom: cls.nom,
+          niveau: cls.niveau,
+          titulaire_id: null, // Pas de titulaire par défaut
+          annee_scolaire_id: data.id
+        }));
+        
+        const { data: newClasses, error: insertError } = await supabase
+          .from('classes')
+          .insert(classesToInsert)
+          .select();
+          
+        if (insertError) {
+          console.error("Erreur lors de la copie des classes:", insertError);
+        } else {
+          console.log(`${newClasses.length} classes copiées avec succès`);
+        }
+      }
+    }
 
     revalidatePath('/dashboard/settings/annees');
+    revalidatePath('/dashboard/classes');
 
     return {
       success: true,
@@ -82,8 +118,7 @@ export async function deleteAnnee(id) {
       
     if (anneeError) throw anneeError;
     
-    console.log(`Suppression de l'année scolaire ${annee.libelle} (ID: ${id})`);
-    
+
     // 2. Supprimer les entrées du journal_de_caisse liées à cette année
     const { error: journalError, count: journalCount } = await supabase
       .from('journal_de_caisse')
@@ -91,7 +126,6 @@ export async function deleteAnnee(id) {
       .eq('annee_scolaire_id', id);
       
     if (journalError) throw journalError;
-    console.log(`${journalCount || 0} entrées du journal supprimées`);
     
     // 3. Supprimer les paiements liés à cette année
     const { error: paiementsError, count: paiementsCount } = await supabase
@@ -100,7 +134,29 @@ export async function deleteAnnee(id) {
       .eq('annee_scolaire_id', id);
       
     if (paiementsError) throw paiementsError;
-    console.log(`${paiementsCount || 0} paiements supprimés`);
+    
+    // 3.1 Traiter la table paiements_eleves_deleted (paiements supprimés)
+    let paiementsDeletedCount = 0;
+    try {
+      // Supprimer les enregistrements de la table paiements_eleves_deleted liés à cette année
+      // puisque la colonne annee_scolaire_id a une contrainte NOT NULL
+      const { error: paiementsDeletedError, count: deletedCount } = await supabase
+        .from('paiements_eleves_deleted')
+        .delete()
+        .eq('annee_scolaire_id', id);
+        
+      if (paiementsDeletedError) {
+        console.error("Erreur lors de la suppression des paiements archivés:", paiementsDeletedError);
+        throw paiementsDeletedError;
+      }
+      
+      paiementsDeletedCount = deletedCount || 0;
+      console.log(`${paiementsDeletedCount} paiements archivés ont été supprimés.`);
+    } catch (paiementsDeletedErr) {
+      // Si la table n'existe pas ou autre erreur
+      console.error("Erreur lors du traitement des paiements archivés:", paiementsDeletedErr);
+      throw paiementsDeletedErr;
+    }
     
     // 4. Récupérer d'abord les classes liées à cette année pour pouvoir supprimer les élèves
     const { data: classes, error: classesSelectError } = await supabase
@@ -112,7 +168,6 @@ export async function deleteAnnee(id) {
     
     // Extraire les IDs des classes
     const classeIds = classes ? classes.map(c => c.id) : [];
-    console.log(`${classeIds.length} classes trouvées pour suppression`);
     
     // 5. Supprimer les élèves liés aux classes de cette année
     if (classeIds.length > 0) {
@@ -122,7 +177,6 @@ export async function deleteAnnee(id) {
         .in('classe_id', classeIds);
         
       if (elevesError) throw elevesError;
-      console.log(`${elevesCount || 0} élèves supprimés`);
     }
     
     // 6. Supprimer les classes liées à cette année
@@ -132,7 +186,6 @@ export async function deleteAnnee(id) {
       .eq('annee_scolaire_id', id);
       
     if (classesError) throw classesError;
-    console.log(`${classesCount || 0} classes supprimées`);
     
     // 7. Supprimer les affectations du personnel pour cette année (si une telle table existe)
     try {
@@ -142,7 +195,7 @@ export async function deleteAnnee(id) {
         .eq('annee_scolaire_id', id);
         
       if (personnelError) throw personnelError;
-      console.log(`${personnelCount || 0} affectations de personnel supprimées`);
+     
     } catch (personnelErr) {
       // Si la table n'existe pas ou autre erreur, simplement logger
       console.log("Note: Pas de suppression des affectations du personnel (table inexistante ou erreur)");
@@ -156,17 +209,17 @@ export async function deleteAnnee(id) {
 
     if (error) throw error;
     
-    console.log(`Année scolaire ${annee.libelle} (ID: ${id}) supprimée avec succès`);
 
     revalidatePath('/dashboard/settings/annees');
     
     // Renvoyer un résumé des suppressions
     return {
       success: true,
-      message: `Année scolaire supprimée avec succès ainsi que toutes les données associées: ${journalCount || 0} entrées du journal, ${paiementsCount || 0} paiements, ${classesCount || 0} classes et leurs élèves.`,
+      message: `Année scolaire supprimée avec succès ainsi que toutes les données associées: ${journalCount || 0} entrées du journal, ${paiementsCount || 0} paiements, ${paiementsDeletedCount || 0} paiements archivés, ${classesCount || 0} classes et leurs élèves.`,
       details: {
         journal: journalCount || 0,
         paiements: paiementsCount || 0,
+        paiementsArchives: paiementsDeletedCount || 0,
         classes: classesCount || 0,
         eleves: classeIds.length > 0 ? "supprimés" : "aucun"
       }
@@ -196,6 +249,101 @@ export async function getAnnees() {
       data
     };
   } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Copie les classes d'une année source vers une année cible
+ */
+export async function copyClassesFromYear(sourceYearId, targetYearId) {
+  const supabase = await createClient();
+  
+  try {
+    if (!sourceYearId || !targetYearId) {
+      throw new Error("Les identifiants d'année source et cible sont requis");
+    }
+    
+    // Vérifier que les années existent
+    const { data: sourceYear, error: sourceYearError } = await supabase
+      .from('annee_scolaire')
+      .select('id, libelle')
+      .eq('id', sourceYearId)
+      .single();
+      
+    if (sourceYearError || !sourceYear) {
+      throw new Error("L'année source n'a pas été trouvée");
+    }
+    
+    const { data: targetYear, error: targetYearError } = await supabase
+      .from('annee_scolaire')
+      .select('id, libelle')
+      .eq('id', targetYearId)
+      .single();
+      
+    if (targetYearError || !targetYear) {
+      throw new Error("L'année cible n'a pas été trouvée");
+    }
+    
+    // Récupérer les classes de l'année source
+    const { data: sourceClasses, error: classesError } = await supabase
+      .from('classes')
+      .select('id, nom, niveau, titulaire_id, frais_scolaire')
+      .eq('annee_scolaire_id', sourceYearId);
+      
+    if (classesError) {
+      throw new Error(`Erreur lors de la récupération des classes: ${classesError.message}`);
+    }
+    
+    if (!sourceClasses || sourceClasses.length === 0) {
+      return {
+        success: true,
+        message: "Aucune classe à copier dans l'année source",
+        data: { copied: 0, total: 0 }
+      };
+    }
+    
+    // Copier chaque classe vers l'année cible
+    const copiedClasses = [];
+    
+    for (const sourceClass of sourceClasses) {
+      const { data: newClass, error: newClassError } = await supabase
+        .from('classes')
+        .insert([{
+          nom: sourceClass.nom,
+          niveau: sourceClass.niveau,
+          frais_scolaire:sourceClass.frais_scolaire,
+          titulaire_id: null, // Pas de titulaire par défaut pour la nouvelle année
+          annee_scolaire_id: targetYearId
+        }])
+        .select()
+        .single();
+        
+      if (newClassError) {
+        console.error(`Erreur lors de la copie de la classe ${sourceClass.id}:`, newClassError);
+        continue;
+      }
+      
+      copiedClasses.push(newClass);
+    }
+    
+    revalidatePath('/dashboard/classes');
+    revalidatePath('/dashboard/settings/annees');
+    
+    return {
+      success: true,
+      message: `${copiedClasses.length} classe(s) copiée(s) avec succès de l'année ${sourceYear.libelle} vers ${targetYear.libelle}`,
+      data: {
+        copied: copiedClasses.length,
+        total: sourceClasses.length,
+        classes: copiedClasses
+      }
+    };
+  } catch (error) {
+    console.error("Erreur lors de la copie des classes:", error);
     return {
       success: false,
       error: error.message

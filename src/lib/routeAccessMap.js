@@ -5,6 +5,8 @@
 export const ROUTE_ACCESS_MAP = {
   "/dashboard": ["admin", "directeur", "secretaire", "comptable", "caissier"],
   "/dashboard/personnel": ["admin", "directeur", "secretaire"],
+  "/dashboard/personnel/attendance": ["admin", "directeur", "secretaire"],
+  "/dashboard/promotions": ["admin", "directeur", "secretaire"],
   "/dashboard/eleves": ["admin", "directeur", "secretaire"],
   "/dashboard/paiements": ["admin", "directeur", "comptable", "caissier"],
   "/dashboard/paiements-supprimes": ["admin", "directeur"],
@@ -12,6 +14,7 @@ export const ROUTE_ACCESS_MAP = {
   "/dashboard/repartition": ["admin", "directeur", "comptable", "caissier"],
   "/dashboard/settings/annees": ["admin", "directeur"],
   "/dashboard/classes": ["admin", "directeur", "secretaire"],
+  "/dashboard/settings/utilisateurs": ["admin", "directeur"],
 };
 
 

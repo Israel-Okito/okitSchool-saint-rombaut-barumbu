@@ -63,12 +63,44 @@ export async function GET(request, context) {
       });
     }
     
+    // Vérifier si l'élève a déjà été promu ou placé comme redoublant
+    let isPromoted = false;
+    let isRepeated = false;
+    
+    // Récupérer l'année scolaire active
+    const { data: anneeActive, error: anneeError } = await supabase
+      .from('annee_scolaire')
+      .select('id')
+      .eq('est_active', true)
+      .single();
+      
+    if (!anneeError && anneeActive) {
+      // Vérifier si cet élève a déjà été promu dans l'année active
+      const { data: promotion, error: promotionError } = await supabase
+        .from('student_promotions')
+        .select('*')
+        .eq('source_annee_id', anneeActive.id)
+        .eq('eleve_id', id)
+        .maybeSingle();
+        
+      if (!promotionError && promotion) {
+        // L'élève est déjà promu ou placé comme redoublant
+        if (eleve.promotion_status === true) {
+          isPromoted = true;
+        } else if (eleve.promotion_status === false) {
+          isRepeated = true;
+        }
+      }
+    }
+    
     // Élève trouvé dans la table des actifs
     return NextResponse.json({
       success: true,
       data: {
         ...eleve,
-        est_supprime: false
+        est_supprime: false,
+        is_promoted: isPromoted,
+        is_repeated: isRepeated
       }
     });
   } catch (error) {

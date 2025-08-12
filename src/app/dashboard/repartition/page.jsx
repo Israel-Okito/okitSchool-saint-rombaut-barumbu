@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useQuery, QueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -32,13 +32,6 @@ const fetchTransactions = async (startDate, endDate, page = 1, limit = 10) => {
   }
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 function RepartitionPageContent() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -158,12 +151,12 @@ function RepartitionPageContent() {
   };
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-5">
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-2xl">Tableau de Répartition des Recettes</CardTitle>
-            <div className="w-64">
+            <CardTitle className="text-xl sm:text-2xl">Tableau de Répartition des Recettes</CardTitle>
+         
+            <div className="w-64 py-5">
               <Label>Période</Label>
               <Select
                 value={selectedMonth}
@@ -189,7 +182,7 @@ function RepartitionPageContent() {
                 </span>
               </p>
             </div>
-          </div>
+        
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -257,10 +250,10 @@ function RepartitionPageContent() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold">Total des Recettes: {totalEntrees.toLocaleString('fr-FR')} $</h3>
-                <h3 className="text-lg font-semibold">Total des Dépenses: {totalSorties.toLocaleString('fr-FR')} $</h3>
-                <h3 className={`text-lg font-semibold ${totalEntrees - totalSorties >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="flex max-sm:flex-col justify-between items-center max-sm:space-y-3 mb-6">
+                <h3 className="text-sm  font-semibold">Total des Recettes: {totalEntrees.toLocaleString('fr-FR')} $</h3>
+                <h3 className="text-sm  font-semibold">Total des Dépenses: {totalSorties.toLocaleString('fr-FR')} $</h3>
+                <h3 className={`text-sm  font-semibold ${totalEntrees - totalSorties >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   Solde: {(totalEntrees - totalSorties).toLocaleString('fr-FR')} $
                 </h3>
               </div>
@@ -339,8 +332,8 @@ function RepartitionPageContent() {
                 </table>
               </div>
 
-              <div className="mt-8 overflow-x-auto">
-                <div className="flex justify-between items-center mb-4">
+              <div className="mt-8">
+                <div className="flex max-sm:flex-col gap-2 justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">Liste des transactions</h3>
                   {totalTransactions > 0 && (
                     <div className="text-sm text-gray-500">
@@ -349,7 +342,7 @@ function RepartitionPageContent() {
                   )}
                 </div>
                 
-                <div className="relative">
+                <div className="relative overflow-x-auto">
                   {isLoading && (
                     <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
                       <Loader className="h-8 w-8 animate-spin text-primary" />
@@ -427,8 +420,6 @@ function RepartitionPageContent() {
 // Exporter la page avec le Provider
 export default function RepartitionPage() {
   return (
-    <QueryClientProvider client={queryClient}>
       <RepartitionPageContent />
-    </QueryClientProvider>
   );
 }

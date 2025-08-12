@@ -14,8 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import Link from 'next/link';
 import { createEleve, updateEleve, deleteEleve } from '@/actions/eleves';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useElevesQuery } from '@/hooks/useElevesQuery';
 import { useClassesQuery } from '@/hooks/useClassesQuery';
 
@@ -34,6 +32,7 @@ export default function ElevesPage() {
   const [selectedClasse, setSelectedClasse] = useState('');
   const [filteredEleves, setFilteredEleves] = useState([]);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [submitloading, setSubmitloading]  = useState(false)
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -215,7 +214,7 @@ export default function ElevesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+    setSubmitloading(true)
     const newErrors = {};
     if (!formData.classe_id) {
       newErrors.classe_id = "Veuillez sélectionner une classe.";
@@ -240,6 +239,8 @@ export default function ElevesPage() {
       }
     } catch (error) {
       toast.error(error.message);
+    }finally{
+      setSubmitloading(false)
     }
   };
   
@@ -315,7 +316,7 @@ export default function ElevesPage() {
             <p className="text-sm text-muted-foreground">Élèves inscrits</p>
           </CardContent>
         </Card>
-
+{/* 
         {Object.keys(stats.parClasse).slice(0, 2).map((classeNom) => (
           <Card key={classeNom}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -327,7 +328,7 @@ export default function ElevesPage() {
               <p className="text-sm text-muted-foreground">Élèves inscrits</p>
             </CardContent>
           </Card>
-        ))}
+        ))} */}
       </div>
 
       <Card className="mb-6">
@@ -677,8 +678,8 @@ export default function ElevesPage() {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Annuler
               </Button>
-              <Button type="submit">
-                {editing ? 'Mettre à jour' : 'Ajouter'}
+              <Button type="submit" disabled={submitloading}>
+                {submitloading ? "Enregistrement" : editing ? 'Modifier' : 'Ajouter'}
               </Button>
             </div>
           </form>

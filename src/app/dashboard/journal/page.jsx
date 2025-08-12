@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, PlusCircle, Search, Trash2, TrendingUp, History, ChevronLeft, ChevronRight, Loader, User } from 'lucide-react';
+import { PlusCircle, Search, TrendingUp, History, ChevronLeft, ChevronRight, Loader, User } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createJournalEntry, updateJournalEntry, deleteJournalEntry } from '@/actions/journal';
@@ -16,15 +16,16 @@ import { useAnneeActiveQuery } from '@/hooks/useAnneeActiveQuery';
 import { useJournalQuery } from '@/hooks/useJournalQuery';
 import { useRubriquesQuery } from '@/hooks/useRubriquesQuery';
 import { useUser } from '@/lib/UserContext';
-import { useRouter } from 'next/navigation';
 import { useJournalStatsQuery } from '@/hooks/useJournalStatsQuery';
 import { useQueryClient } from '@tanstack/react-query';
+import JournalReportButton from '@/components/Report_Button/JournalReportButton';
 
 
 
 export default function JournalPage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -47,8 +48,6 @@ export default function JournalPage() {
   const {
     data: statsData,
     isLoading: statsLoading,
-    isError: isStatsError,
-    error: statsError,
     refetch: refetchStats
   } = useJournalStatsQuery({
     enabled: !!anneeActiveData?.anneeActive,
@@ -87,7 +86,6 @@ export default function JournalPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const entriesPerPage = 10;
-  const router = useRouter();
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -116,18 +114,17 @@ export default function JournalPage() {
     isLoading: isJournalLoading,
     isError: isJournalError,
     error: journalError,
-    refetch: refetchJournal
   } = useJournalQuery({
     page: currentPage,
     limit: entriesPerPage,
     search: debouncedSearchTerm,
     enabled: !!anneeActiveData?.anneeActive && !isAnneeActiveLoading
   });
+
   
 
   const {
     data: rubriquesData,
-    isLoading: isRubriquesLoading
   } = useRubriquesQuery();
 
   useEffect(() => {
@@ -229,6 +226,9 @@ export default function JournalPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    setSubmitLoading(true)
+    
+    
     if (!formData.date || !formData.type || !formData.montant) {
       toast.error('Veuillez remplir tous les champs obligatoires');
       return;
@@ -277,6 +277,8 @@ export default function JournalPage() {
       resetForm();
     } catch (error) {
       toast.error(`Impossible de ${isEditing ? 'modifier' : 'créer'} l'entrée: ${error.message}`);
+     } finally {
+      setSubmitLoading(false); 
     }
   };
 
@@ -343,7 +345,7 @@ export default function JournalPage() {
   const typeLabels = { 'entree': 'Entrée', 'sortie': 'Sortie' };
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-5">
       <div className="flex flex-col md:flex-row justify-between gap-5 items-center mb-6">
         <h1 className="text-2xl font-bold">Journal de caisse</h1>
         <div className="flex flex-wrap gap-2">
@@ -355,6 +357,7 @@ export default function JournalPage() {
               </Button>
             </Link>
           )}
+          <JournalReportButton />
           <Button onClick={() => handleOpenDialog()}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Nouvelle entrée
@@ -377,18 +380,18 @@ export default function JournalPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-2xl font-bold">{stats.today.total.toFixed(2)} $</p>
+                    <p className="text-lg font-bold">{stats.today.total.toFixed(2)} $</p>
                     <p className="text-sm text-muted-foreground">Solde ({stats.today.count} transactions)</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-primary" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-green-50 p-2 rounded-md">
-                    <p className="text-green-700 text-lg font-semibold">+{stats.today.totalEntrees.toFixed(2)} $</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-green-50 p-1 rounded-md">
+                    <p className="text-green-700 text-sm font-semibold">+{stats.today.totalEntrees.toFixed(2)} $</p>
                     <p className="text-xs text-green-600">{stats.today.countEntrees} entrées</p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded-md">
-                    <p className="text-red-700 text-lg font-semibold">-{stats.today.totalSorties.toFixed(2)} $</p>
+                  <div className="bg-red-50 p-1 rounded-md">
+                    <p className="text-red-700 text-sm font-semibold">-{stats.today.totalSorties.toFixed(2)} $</p>
                     <p className="text-xs text-red-600">{stats.today.countSorties} sorties</p>
                   </div>
                 </div>
@@ -411,18 +414,18 @@ export default function JournalPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-2xl font-bold">{stats.month.total.toFixed(2)} $</p>
+                    <p className="text-lg font-bold">{stats.month.total.toFixed(2)} $</p>
                     <p className="text-sm text-muted-foreground">Solde ({stats.month.count} transactions)</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-primary" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-green-50 p-2 rounded-md">
-                    <p className="text-green-700 text-lg font-semibold">+{stats.month.totalEntrees.toFixed(2)} $</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-green-50 p-1 rounded-md">
+                    <p className="text-green-700 text-sm font-semibold">+{stats.month.totalEntrees.toFixed(2)} $</p>
                     <p className="text-xs text-green-600">{stats.month.countEntrees} entrées</p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded-md">
-                    <p className="text-red-700 text-lg font-semibold">-{stats.month.totalSorties.toFixed(2)} $</p>
+                  <div className="bg-red-50 p-1 rounded-md">
+                    <p className="text-red-700 text-sm font-semibold">-{stats.month.totalSorties.toFixed(2)} $</p>
                     <p className="text-xs text-red-600">{stats.month.countSorties} sorties</p>
                   </div>
                 </div>
@@ -445,18 +448,18 @@ export default function JournalPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-2xl font-bold">{stats.year.total.toFixed(2)} $</p>
+                    <p className="text-xl font-bold">{stats.year.total.toFixed(2)} $</p>
                     <p className="text-sm text-muted-foreground">Solde ({stats.year.count} transactions)</p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-primary" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-green-50 p-2 rounded-md">
-                    <p className="text-green-700 text-lg font-semibold">+{stats.year.totalEntrees.toFixed(2)} $</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-green-50 p-1 rounded-md">
+                    <p className="text-green-700 text-sm font-semibold">+{stats.year.totalEntrees.toFixed(2)} $</p>
                     <p className="text-xs text-green-600">{stats.year.countEntrees} entrées</p>
                   </div>
-                  <div className="bg-red-50 p-2 rounded-md">
-                    <p className="text-red-700 text-lg font-semibold">-{stats.year.totalSorties.toFixed(2)} $</p>
+                  <div className="bg-red-50 p-1 rounded-md">
+                    <p className="text-red-700 text-sm font-semibold">-{stats.year.totalSorties.toFixed(2)} $</p>
                     <p className="text-xs text-red-600">{stats.year.countSorties} sorties</p>
                   </div>
                 </div>
@@ -510,9 +513,9 @@ export default function JournalPage() {
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</TableHead>
-                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Libellé</TableHead>
-                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Rubrique</TableHead>
-                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Utilisateur</TableHead>
+                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider ">Libellé</TableHead>
+                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Rubrique</TableHead>
+                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider ">Traçabilité</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -523,9 +526,9 @@ export default function JournalPage() {
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-24" /></TableCell>
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
-                          <TableCell className="py-3 px-4 hidden md:table-cell"><Skeleton className="h-5 w-full" /></TableCell>
-                          <TableCell className="py-3 px-4 hidden md:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
-                          <TableCell className="py-3 px-4 hidden lg:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                          <TableCell className="py-3 px-4 "><Skeleton className="h-5 w-full" /></TableCell>
+                          <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
+                          <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
                           <TableCell className="py-3 px-4 text-right">
                             <div className="flex justify-end space-x-2">
                               <Skeleton className="h-8 w-8 rounded-md" />
@@ -550,41 +553,39 @@ export default function JournalPage() {
                           <TableCell className="py-3 px-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {parseFloat(entry.montant).toFixed(2)} $
                           </TableCell>
-                          <TableCell className="py-3 px-4 text-sm text-gray-500 hidden md:table-cell">
+                          <TableCell className="py-3 px-4 text-sm text-gray-500 ">
                             <div className="max-w-xs truncate" title={entry.description}>
                               {entry.description || '-'}
                             </div>
                           </TableCell>
-                          <TableCell className="py-3 px-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                          <TableCell className="py-3 px-4 whitespace-nowrap text-sm text-gray-500 ">
                             {entry.categorie || '-'}
                       </TableCell>
-                          <TableCell className="py-3 px-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                            {entry.userName ? (
+                          <TableCell className="py-3 px-4 whitespace-nowrap text-sm text-gray-500 ">
+                            {entry.user_nom ? (
                               <div className="flex items-center">
                                 <User className="h-3 w-3 mr-1" />
-                                <span className="text-xs">{entry.userName}</span>
+                                <span className="text-xs">{entry.user_nom}</span>
                               </div>
                             ) : '-'}
-                      </TableCell>
+                          </TableCell>
                           <TableCell className="py-3 px-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2">
+                            <div className="flex flex-col justify-end gap-2">
                               <Button 
                                 variant="ghost" 
-                                size="icon"
                                 onClick={() => handleOpenDialog(entry)}
                                 aria-label="Modifier"
-                                className="h-8 w-8 p-0 text-indigo-600 hover:text-indigo-900"
+                                className=" bg-indigo-600 text-white "
                               >
-                                <Pencil className="h-4 w-4" />
+                                Modifier
                               </Button>
                               <Button 
                                 variant="ghost" 
-                                size="icon"
                                 onClick={() => handleDelete(entry.id)}
                                 aria-label="Supprimer"
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-900"
+                                className=" bg-red-600 text-white"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                Supprimer
                               </Button>
                             </div>
                       </TableCell>
@@ -720,8 +721,9 @@ export default function JournalPage() {
               }}>
                 Annuler
               </Button>
-              <Button type="submit">
-                {isEditing ? 'Mettre à jour' : 'Ajouter'}
+              <Button type="submit" disabled={submitLoading}>
+               
+                {submitLoading ? 'Enregistrement...' :  `${isEditing ? 'Mettre à jour' : 'Ajouter'}`}
               </Button>
             </DialogFooter>
           </form>

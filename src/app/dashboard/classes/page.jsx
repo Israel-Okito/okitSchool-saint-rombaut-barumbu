@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,33 +9,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClass, updateClass, deleteClass } from '@/actions/classes';
-import { Plus, Trash2, Pencil, Eye, School, Search, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
+import { School, ChevronLeft, ChevronRight, Loader, PlusCircle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { useClassesDetailedQuery } from '@/hooks/useClassesDetailedQuery';
 import { usePersonnelQuery } from '@/hooks/usePersonnelQuery';
+import { useUser } from '@/lib/UserContext';
+import { Badge } from '@/components/ui/badge';
 
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState([]);
+  const { user } = useUser();
+  const [allClasses, setAllClasses] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [niveauFilter, setNiveauFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalClasses, setTotalClasses] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const classesPerPage = 10;
 
   const [formData, setFormData] = useState({
     nom: '',
     niveau: '',
-    titulaire_id: ''
+    titulaire_id: '',
+    frais_scolaire: '',
+    user_id: ''
   });
 
   // Utiliser React Query pour récupérer les classes
@@ -47,9 +51,7 @@ export default function ClassesPage() {
     refetch: refetchClasses
   } = useClassesDetailedQuery({
     page: currentPage,
-    limit: classesPerPage,
-    search: debouncedSearchTerm,
-    niveau: niveauFilter
+    limit: 100, // Récupérer plus de classes pour permettre le filtrage côté client
   });
 
   // Utiliser React Query pour récupérer le personnel
@@ -61,35 +63,44 @@ export default function ClassesPage() {
   });
 
   const niveaux = [
-    '1ère Maternelle',
-    '2ème Maternelle',
-    '3ème Maternelle',
-    '1ère Primaire',
-    '2ème Primaire',
-    '3ème Primaire',
-    '4ème Primaire',
-    '5ème Primaire',
-    '6ème Primaire',
+    'Maternelle',
+    'Primaire'
   ];
-  
-  // Debounce pour la recherche
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); 
-    }, 300);
+
+  // Filtrage côté client
+  const filteredClasses = useMemo(() => {
+    if (!allClasses.length) return [];
     
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+    return allClasses.filter(classe => {
+      const matchesNiveau = !niveauFilter || niveauFilter === 'Tous les niveaux' || classe.niveau === niveauFilter;
+      const matchesSearch = !searchQuery || 
+        classe.nom.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      return matchesNiveau && matchesSearch;
+    });
+  }, [allClasses, niveauFilter, searchQuery]);
+  
+  // Pagination côté client
+  const paginatedClasses = useMemo(() => {
+    const startIndex = (currentPage - 1) * classesPerPage;
+    return filteredClasses.slice(startIndex, startIndex + classesPerPage);
+  }, [filteredClasses, currentPage, classesPerPage]);
+
+  // Mettre à jour le nombre total de pages en fonction des résultats filtrés
+  useEffect(() => {
+    setTotalPages(Math.max(1, Math.ceil(filteredClasses.length / classesPerPage)));
+    // Si la page actuelle dépasse le nombre total de pages, revenir à la première page
+    if (currentPage > Math.ceil(filteredClasses.length / classesPerPage) && filteredClasses.length > 0) {
+      setCurrentPage(1);
+    }
+  }, [filteredClasses, classesPerPage, currentPage]);
   
   // Mettre à jour les états locaux lorsque les données React Query changent
   useEffect(() => {
     if (classesData?.success) {
-      setClasses(classesData.data || []);
-      setTotalClasses(classesData.total || classesData.data.length);
-      setTotalPages(classesData.totalPages || Math.ceil((classesData.total || classesData.data.length) / classesPerPage));
+      setAllClasses(classesData.data || []);
     }
-  }, [classesData, classesPerPage]);
+  }, [classesData]);
 
   useEffect(() => {
     if (personnelData?.success) {
@@ -111,20 +122,34 @@ export default function ClassesPage() {
     }
   }, [isClassesError, classesError]);
 
+  // Mettre à jour le formData avec l'ID utilisateur lorsqu'il est disponible
+  useEffect(() => {
+    if (user?.id) {
+      setFormData(prev => ({
+        ...prev,
+        user_id: user.id
+      }));
+    }
+  }, [user]);
+
   const handleOpenDialog = (classe = null) => {
     if (classe) {
       setFormData({
         id: classe.id,
         nom: classe.nom,
         niveau: classe.niveau,
-        titulaire_id: classe.titulaire_id || ''
+        titulaire_id: classe.titulaire_id || '',
+        frais_scolaire: classe.frais_scolaire || '',
+        user_id: user?.id || ''
       });
       setEditing(true);
     } else {
       setFormData({
         nom: '',
         niveau: '',
-        titulaire_id: ''
+        titulaire_id: '',
+        frais_scolaire: '',
+        user_id: user?.id || ''
       });
       setEditing(false);
     }
@@ -148,11 +173,17 @@ export default function ClassesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setSubmitLoading(true);
     try {
+      // S'assurer que l'ID utilisateur est inclus
+      const dataToSubmit = {
+        ...formData,
+        user_id: user?.id || formData.user_id
+      };
+      
       if (editing) {
         // Mettre à jour une classe existante
-        const result = await updateClass(formData);
+        const result = await updateClass(dataToSubmit);
         
         if (!result.success) {
           throw new Error(result.error);
@@ -161,21 +192,17 @@ export default function ClassesPage() {
         // Rafraîchir les données avec React Query
         refetchClasses();
         toast.success('Classe mise à jour avec succès');
+
       } else {
         // Créer une nouvelle classe
-        const result = await createClass(formData);
+        const result = await createClass(dataToSubmit);
         
         if (!result.success) {
           throw new Error(result.error);
         }
         
         // Rafraîchir les données avec React Query
-        if (currentPage !== 1) {
-          setCurrentPage(1); 
-        } else {
-          refetchClasses();
-        }
-        
+        refetchClasses();
         toast.success('Classe ajoutée avec succès');
       }
       
@@ -184,11 +211,15 @@ export default function ClassesPage() {
       setFormData({
         nom: '',
         niveau: '',
-        titulaire_id: ''
+        titulaire_id: '',
+        frais_scolaire: '',
+        user_id: user?.id || ''
       });
       
     } catch (error) {
       toast.error(error.message);
+    }finally{
+      setSubmitLoading(false);
     }
   };
 
@@ -198,7 +229,8 @@ export default function ClassesPage() {
     }
     
     try {
-      const result = await deleteClass(id);
+      // Inclure l'ID utilisateur pour la traçabilité de suppression
+      const result = await deleteClass(id, user?.id);
       
       if (!result.success) {
         throw new Error(result.error);
@@ -210,6 +242,11 @@ export default function ClassesPage() {
     } catch (error) {
       toast.error(error.message);
     }
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1); // Revenir à la première page lors d'une recherche
   };
 
   if (loading) {
@@ -256,12 +293,12 @@ export default function ClassesPage() {
   return (
     <div className="space-y-6 p-2 sm:p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-xl sm:text-2xl font-bold">Classes</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Gestion de Classes</h1>
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => handleOpenDialog()} className="whitespace-nowrap">
-                <Plus className="mr-2 h-4 w-4" />
+                <PlusCircle className="mr-2 h-4 w-4" />
                 Ajouter une classe
               </Button>
             </DialogTrigger>
@@ -314,7 +351,7 @@ export default function ClassesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {personnel
-                        .filter(p => p.poste === 'enseignant') // Filtrer pour ne montrer que les enseignants
+                        .filter(p => p.poste === 'enseignant') 
                         .map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.prenom} {p.nom} {p.postnom} - {p.poste}
@@ -322,6 +359,16 @@ export default function ClassesPage() {
                         ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="frais_scolaire">Frais scolaire</Label>
+                  <Input
+                    id="frais_scolaire"
+                    name="frais_scolaire"
+                    value={formData.frais_scolaire}
+                    onChange={handleFormChange}
+                    required
+                  />
                 </div>
                 <div className="pt-4 flex justify-end gap-2">
                   <Button 
@@ -331,8 +378,9 @@ export default function ClassesPage() {
                   >
                     Annuler
                   </Button>
-                  <Button type="submit">
-                    {editing ? 'Modifier' : 'Ajouter'}
+                  <Button type="submit" disabled={submitLoading}>
+                   
+                    {submitLoading ? 'Enregistrement...' : 'Enregistrer'}
                   </Button>
                 </div>
               </form>
@@ -346,26 +394,31 @@ export default function ClassesPage() {
           <CardTitle>Liste des classes</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-3">
             <div className="flex flex-col sm:flex-row gap-2 w-full">
+              {/* Champ de recherche par nom */}
               <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  type="text"
                   placeholder="Rechercher une classe..."
-                  className="pl-8 w-full"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="pl-8"
                 />
               </div>
+              
+              {/* Filtre par niveau */}
               <div className="w-full sm:w-48">
                 <Select 
                   value={niveauFilter} 
-                  onValueChange={setNiveauFilter}
+                  onValueChange={(value) => {
+                    setNiveauFilter(value);
+                    setCurrentPage(1); // Revenir à la première page lors d'un changement de filtre
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Filtrer par niveau" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem >Tous les niveaux</SelectItem>
+                    <SelectItem value="Tous les niveaux">Tous les niveaux</SelectItem>
                     {niveaux.map((niveau) => (
                       <SelectItem key={niveau} value={niveau}>
                         {niveau}
@@ -386,22 +439,24 @@ export default function ClassesPage() {
             )}
             
             <div className="overflow-x-auto">
-              {classes.length > 0 ? (
+              {paginatedClasses.length > 0 ? (
                 <Table className="w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="whitespace-nowrap">Nom de la classe</TableHead>
                       <TableHead className="whitespace-nowrap">Niveau</TableHead>
                       <TableHead className="whitespace-nowrap">Titulaire</TableHead>
+                      <TableHead className="whitespace-nowrap">Frais scolaire</TableHead>
+                      <TableHead className="whitespace-nowrap">Traçabilité</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {classes.map((classe) => {
+                    {paginatedClasses.map((classe, index) => {
                       const titulaire = personnel.find(p => p.id === classe.titulaire_id);
 
                       return (
-                        <TableRow key={classe.id}>
+                        <TableRow key={classe.id}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
                           <TableCell className="whitespace-nowrap">
                             <Link href={`/dashboard/classes/${classe.id}`} className="hover:underline text-blue-600">
                               {classe.nom}
@@ -413,39 +468,47 @@ export default function ClassesPage() {
                           <TableCell className="whitespace-nowrap">
                             {titulaire ? `${titulaire.nom} ${titulaire.prenom} ${titulaire.postnom}` : 'Non assigné'}
                           </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge className="bg-green-500 text-white">{classe.frais_scolaire ? `${classe.frais_scolaire} $` : 'non défini'}</Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {classe.user_nom || 'Utilisateur inconnu'}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
+                            <div className="flex flex-col  justify-end gap-1 ">
+                            <Button
+                                variant="ghost"
+                                asChild
+                                className="bg-black text-white"
+                              >
+                                <Link href={`/dashboard/classes/${classe.id}`}>
+                                Voir les details
+                                </Link>
+                              </Button>
                               <Button
                                 variant="ghost"
-                                size="icon"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   handleOpenDialog(classe);
                                 }}
+                                className="bg-indigo-600 text-white"
                               >
-                                <Pencil className="h-4 w-4" />
+                                Modifier
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="icon"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   handleDelete(classe.id);
                                 }}
+                                
+                                className="bg-red-600 text-white"
                               >
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                                Supprimer
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                asChild
-                              >
-                                <Link href={`/dashboard/classes/${classe.id}`}>
-                                  <Eye className="h-4 w-4" />
-                                </Link>
-                              </Button>
+                             
                             </div>
                           </TableCell>
                         </TableRow>
@@ -457,9 +520,7 @@ export default function ClassesPage() {
                 <div className="flex flex-col items-center py-8">
                   <School className="h-12 w-12 text-gray-400 mb-4" />
                   <p className="text-gray-500">
-                    {debouncedSearchTerm || niveauFilter
-                      ? "Aucune classe ne correspond à votre recherche." 
-                      : "Aucune classe n'a été créée."}
+                    {(searchQuery || niveauFilter) ? "Aucune classe ne correspond à votre recherche." : "Aucune classe disponible."}
                   </p>
                 </div>
               )}

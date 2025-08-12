@@ -57,7 +57,18 @@ export function LoginForm() {
     } catch (error) {
       console.error("Erreur de connexion:", error);
       setErr(error.message || "Erreur d'authentification");
-      toast.error("Erreur d'authentification, veuillez vérifier vos identifiants");
+      
+      // Afficher un message spécifique si le compte est désactivé
+      if (error.message.includes("désactivé")) {
+        toast.error("Votre compte a été désactivé. Veuillez contacter l'administrateur.");
+        
+        // Rediriger vers la page d'accueil après un court délai
+        setTimeout(() => {
+          router.push('/');
+        }, 2000);
+      } else {
+        toast.error("Erreur d'authentification, veuillez vérifier vos identifiants");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +77,7 @@ export function LoginForm() {
   return (
 
     <div className="md:w-1/2 w-full mx-auto max-w-md">
-      <div className="bg-white rounded-xl shadow-lg p-6 space-y-4 text-gray-900">
+      <div className="bg-white rounded-xl shadow-lg p-6 m-2 space-y-4 text-gray-900">
         <h3 className="text-2xl font-semibold text-center">Connexion</h3>
         <p className="text-sm text-gray-500 text-center">
           Accédez à votre espace personnel
@@ -105,7 +116,7 @@ export function LoginForm() {
           </div>
 
           {err && (
-            <div className="text-red-500 text-sm">l&apos;un des champs n&apos;est pas correct</div>
+            <div className="text-red-500 text-sm">{err}</div>
           )}
           
 

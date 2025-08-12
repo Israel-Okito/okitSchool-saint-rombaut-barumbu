@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,9 @@ import { toast } from 'sonner';
 import Link from "next/link";
 import { useParams } from 'next/navigation';
 import { useClasseDetailQuery } from '@/hooks/useClasseDetailQuery';
+import { UserRound } from 'lucide-react';
+import ClassePaiementsReportButton from '@/components/Report_Button/ClassePaiementsReportButton';
+
 
 
 export default function ClasseDetailsPage() {
@@ -111,9 +114,41 @@ export default function ClasseDetailsPage() {
     setMontantOperator(value);
   };
 
+  // Optimisation des statistiques par genre avec useMemo
+  const genderStatistics = useMemo(() => {
+    if (!data?.genderStats) {
+      return {
+        malePercentage: 0,
+        femalePercentage: 0,
+        maleCircleDasharray: 0,
+        femaleCircleDasharray: 0,
+        maleCircleOffset: 0
+      };
+    }
+
+    const { maleCount, femaleCount, totalCount } = data.genderStats;
+    const malePercentage = totalCount ? Math.round((maleCount / totalCount) * 100) : 0;
+    const femalePercentage = totalCount ? Math.round((femaleCount / totalCount) * 100) : 0;
+    
+    // Valeurs pour l'affichage circulaire SVG (circonférence d'un cercle de rayon 40 = 2 * π * 40 ≈ 251.2)
+    const circumference = 251.2;
+    const maleCircleDasharray = totalCount ? (maleCount / totalCount) * circumference : 0;
+    const femaleCircleDasharray = totalCount ? (femaleCount / totalCount) * circumference : 0;
+    const maleCircleOffset = totalCount ? -((femaleCount / totalCount) * circumference) : 0;
+    
+    return {
+      malePercentage,
+      femalePercentage,
+      maleCircleDasharray,
+      femaleCircleDasharray,
+      maleCircleOffset,
+      circumference
+    };
+  }, [data?.genderStats]);
+
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-2">
         <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
         <div className="h-32 bg-gray-200 rounded animate-pulse" />
         <div className="h-64 bg-gray-200 rounded animate-pulse" />
@@ -149,17 +184,27 @@ export default function ClasseDetailsPage() {
   
   return (
     <div className="space-y-6 p-2 sm:p-5">
-      <div className="flex flex-wrap items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard/classes">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-xl sm:text-2xl font-bold">Classe {classe.nom}</h1>
-        <Badge variant="outline">{classe.niveau}</Badge>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/dashboard/classes">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <h1 className="text-lg sm:text-2xl font-bold">Classe {classe.nom}</h1>
+          <Badge variant="outline" className="hidden sm:flex">{classe.niveau}</Badge>
+          {classe.user_nom && (
+            <span className="text-sm text-gray-500">
+              Créée par {classe.user_nom}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <ClassePaiementsReportButton classId={id} classeData={data} />
+        </div>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Titulaire</CardTitle>
@@ -188,7 +233,45 @@ export default function ClasseDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 lg:col-span-1">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Statistiques par genre</CardTitle>
+            <div className="flex space-x-1">
+              <UserRound className="h-4 w-4 text-blue-500" />
+              <UserRound className="h-4 w-4 text-pink-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline justify-between mb-2">
+              <div className="flex items-center">
+                <UserRound className="h-5 w-5 text-blue-500 mr-2" />
+                <p className="text-lg font-medium">{data.genderStats?.maleCount || 0} garçons</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                ({genderStatistics.malePercentage}%)
+              </p>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <div className="flex items-center">
+                <UserRound className="h-5 w-5 text-pink-500 mr-2" />
+                <p className="text-lg font-medium">{data.genderStats?.femaleCount || 0} filles</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                ({genderStatistics.femalePercentage}%)
+              </p>
+            </div>
+            <div className="mt-3 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-pink-500" 
+                style={{ 
+                  width: `${genderStatistics.malePercentage}%` 
+                }}
+              ></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* <Card className="lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Paiements</CardTitle>
             <DollarSign className="h-4 w-4 text-green-500" />
@@ -203,7 +286,7 @@ export default function ClasseDetailsPage() {
               ></div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       <Card className="mb-6">
@@ -255,10 +338,17 @@ export default function ClasseDetailsPage() {
       </Card>
       
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full overflow-x-auto">
+        <TabsList className=" flex gap-2 justify-between items-center w-full overflow-x-auto">
           <TabsTrigger value="all">Tous ({filteredEleves.length})</TabsTrigger>
           <TabsTrigger value="paid">Payé ({filteredElevesPaies.length})</TabsTrigger>
           <TabsTrigger value="unpaid">Non payé ({filteredElevesNonPaies.length})</TabsTrigger>
+          <TabsTrigger value="gender">
+            <div className="flex items-center space-x-1">
+              <UserRound className="h-4 w-4" />
+              <UserRound className="h-4 w-4" />
+              <span className="ml-1">Statistiques</span>
+            </div>
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="all" className="mt-6">
@@ -274,12 +364,12 @@ export default function ClasseDetailsPage() {
                     <Table className="min-w-full">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="whitespace-nowrap">Nom</TableHead>
-                          <TableHead className="whitespace-nowrap">Prénom</TableHead>
+                          <TableHead className="whitespace-nowrap">Nom complet</TableHead>
                           <TableHead className="whitespace-nowrap">Naissance</TableHead>
                           <TableHead className="whitespace-nowrap">Contact</TableHead>
                           <TableHead className="whitespace-nowrap">Total payé</TableHead>
                           <TableHead className="whitespace-nowrap">Statut</TableHead>
+                          <TableHead className="whitespace-nowrap">Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -288,8 +378,7 @@ export default function ClasseDetailsPage() {
                           
                           return (
                             <TableRow key={eleve.id}>
-                              <TableCell className="font-medium whitespace-nowrap">{eleve.nom}</TableCell>
-                              <TableCell className="whitespace-nowrap">{eleve.prenom}</TableCell>
+                              <TableCell className="font-medium whitespace-nowrap">{eleve.nom}{' '}{eleve.prenom}{' '}{eleve.postnom}</TableCell>
                               <TableCell className="whitespace-nowrap">
                                 {eleve.date_naissance && format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}
                               </TableCell>
@@ -315,6 +404,7 @@ export default function ClasseDetailsPage() {
                                   </div>
                                 )}
                               </TableCell>
+                              <TableCell className="whitespace-nowrap bg-black text-center text-white rounded-lg"><Link href={`/dashboard/eleves/${eleve.id}`}>Voir détails</Link></TableCell>
                             </TableRow>
                           );
                         })}
@@ -410,7 +500,7 @@ export default function ClasseDetailsPage() {
                               {eleve.date_naissance && format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}
                             </TableCell>
                             <TableCell className="whitespace-nowrap">
-                              {eleve.contact_parent || eleve.contact_secondaire || "Non disponible"}
+                              {eleve.telephone || "Non disponible"}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -432,6 +522,172 @@ export default function ClasseDetailsPage() {
                     )}
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="gender" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Répartition par genre</CardTitle>
+              <CardDescription>Vue détaillée des statistiques par genre de la classe</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+                {/* Left side - Stats and visualization */}
+                <div>
+                  <h3 className="font-medium text-lg mb-4">Distribution des élèves</h3>
+                  
+                  {/* Gender bars */}
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <div className="flex items-center">
+                          <UserRound className="h-5 w-5 text-blue-500 mr-2" />
+                          <span className="font-medium">Garçons</span>
+                        </div>
+                        <div>
+                          <span className="font-bold">{data.genderStats?.maleCount || 0}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({genderStatistics.malePercentage}%)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div 
+                          className="bg-blue-500 h-2.5 rounded-full" 
+                          style={{ 
+                            width: `${genderStatistics.malePercentage}%` 
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <div className="flex items-center">
+                          <UserRound className="h-5 w-5 text-pink-500 mr-2" />
+                          <span className="font-medium">Filles</span>
+                        </div>
+                        <div>
+                          <span className="font-bold">{data.genderStats?.femaleCount || 0}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({genderStatistics.femalePercentage}%)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div 
+                          className="bg-pink-500 h-2.5 rounded-full" 
+                          style={{ 
+                            width: `${genderStatistics.femalePercentage}%` 
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Circle visualization */}
+                  <div className="mt-8 flex justify-center">
+                    <div className="relative w-40 h-40">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        {/* Background circle */}
+                        <circle 
+                          cx="50" 
+                          cy="50" 
+                          r="40" 
+                          fill="none" 
+                          stroke="#e5e7eb" 
+                          strokeWidth="20"
+                        />
+                        
+                        {/* Females arc */}
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="none"
+                          stroke="#ec4899"
+                          strokeWidth="20"
+                          strokeDasharray={`${genderStatistics.femaleCircleDasharray} ${genderStatistics.circumference}`}
+                          transform="rotate(-90 50 50)"
+                        />
+                        
+                        {/* Males arc (on top, continuing from females) */}
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="20"
+                          strokeDasharray={`${genderStatistics.maleCircleDasharray} ${genderStatistics.circumference}`}
+                          strokeDashoffset={genderStatistics.maleCircleOffset}
+                          transform="rotate(-90 50 50)"
+                        />
+                      </svg>
+                      
+                      {/* Center text */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-lg font-bold">{data.genderStats?.totalCount || 0}</span>
+                        <span className="text-xs text-muted-foreground">Élèves</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Right side - Lists of students by gender */}
+                <div>
+                  <h3 className="font-medium text-lg mb-4">Liste par genre</h3>
+                  
+                  <div className="flex space-x-2 mb-4">
+                    <Badge className="bg-blue-500 text-white">
+                      <UserRound className="h-3.5 w-3.5 mr-1" />
+                      Garçons: {data.genderStats?.maleCount || 0}
+                    </Badge>
+                    <Badge className="bg-pink-500 text-white">
+                      <UserRound className="h-3.5 w-3.5 mr-1" />
+                      Filles: {data.genderStats?.femaleCount || 0}
+                    </Badge>
+                  </div>
+                  
+                  {/* Table of students with gender */}
+                  <div className="overflow-x-auto border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Nom complet</TableHead>
+                          <TableHead>Sexe</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredEleves.map((eleve, index) => (
+                          <TableRow key={eleve.id}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell>
+                              {eleve.nom}{' '}{eleve.prenom}{' '}{eleve.postnom || ''}
+                            </TableCell>
+                            <TableCell>
+                              {eleve.sexe === 'M' ? (
+                                <div className="flex items-center text-blue-500">
+                                  <UserRound className="h-4 w-4 mr-1" />
+                                  <span>Garçon</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center text-pink-500">
+                                  <UserRound className="h-4 w-4 mr-1" />
+                                  <span>Fille</span>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

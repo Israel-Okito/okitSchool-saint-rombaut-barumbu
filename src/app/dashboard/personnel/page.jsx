@@ -8,23 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, PlusCircle, Search, Trash2, User, Briefcase,ChevronLeft, ChevronRight, UserCircle, Loader } from 'lucide-react';
+import { PlusCircle, Search, User, Briefcase,ChevronLeft, ChevronRight, UserCircle, Loader, ClipboardCheck } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { createPersonnel, updatePersonnel, deletePersonnel } from '@/actions/personnel';
-import { createClient } from '@/utils/supabase/client';
 import { usePersonnelQuery} from '@/hooks/usePersonnelQuery';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {  useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
 import { useUser } from '@/lib/UserContext';
 
 
-const cache = {
-  userData: null,
-  usersInfo: new Map()
-};
 
 const POSTES = [
   { value: 'enseignant', label: 'Enseignant' },
@@ -47,6 +41,7 @@ export default function PersonnelPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [tableLoading, setTableLoading] = useState(false);
   
+  const [submitLoading, setSubmitLoading] = useState(false);
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [personnelPerPage] = useState(10);
@@ -59,7 +54,6 @@ export default function PersonnelPage() {
     postnom: '',
     poste: '',
     contact: '',
-    user_id: '',
     adresse: '',
     sexe: '',
     date_naissance: '',
@@ -81,46 +75,8 @@ export default function PersonnelPage() {
     staleTime: 60 * 1000 
   });
   
-  // Requête pour récupérer l'utilisateur courant depuis le localStorage
-  const { 
-    data: currentUser,
-    isLoading: isUserLoading 
-  } = useQuery({
-    queryKey: ['current-user'],
-    queryFn: async () => {
-      // Vérifier si les données sont déjà en cache
-      if (cache.userData) {
-        return cache.userData;
-      }
-      
-
-      
-      try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          cache.userData = userData;
-          return userData;
-        }
-        
-        const supabase = createClient();
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (error) throw error;
-        if (user) {
-          cache.userData = user;
-          return user;
-        }
-        
-        return null;
-    } catch (error) {
-        console.error('Erreur lors de la récupération de l\'utilisateur:', error);
-        return null;
-      }
-    },
-    staleTime: 30 * 60 * 1000 
-  });
-
+ 
+   
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
@@ -190,7 +146,6 @@ export default function PersonnelPage() {
       postnom: '',
       poste: '',
       contact: '',
-      user_id: '',
       adresse: '',
       sexe: '',
       date_naissance: '',
@@ -229,17 +184,17 @@ export default function PersonnelPage() {
       setIsEditing(true);
       setSelectedPersonnel(personnelDetails);
       setFormData({
+        id: personnelDetails.id,
         nom: personnelDetails.nom || '',
         prenom: personnelDetails.prenom || '',
         postnom: personnelDetails.postnom || '',
         poste: personnelDetails.poste || '',
         contact: personnelDetails.contact || '',
-        user_id: personnelDetails.user_id || '',
         adresse: personnelDetails.adresse || '',
         sexe: personnelDetails.sexe || '',
         date_naissance: personnelDetails.date_naissance || '',
         lieu_naissance: personnelDetails.lieu_naissance || '',
-        user_id: user ? user.id : paiement.user_id || ''
+        user_id: user ? user.id : personnelDetails.user_id || ''
       });
     } else {
       resetForm();
@@ -249,54 +204,76 @@ export default function PersonnelPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitLoading(true);
     
     try {
-      let result;
+      // S'assurer que l'ID utilisateur est inclus
+      const dataToSubmit = {
+        ...formData,
+        user_id: user?.id || formData.user_id
+      };
       
-      if (isEditing) {
-        result = await updatePersonnel({
-          id: selectedPersonnel.id,
-          ...formData
+      if (isEditing && selectedPersonnel) {
+        // Mettre à jour un personnel existant
+        const result = await updatePersonnel({
+          ...dataToSubmit,
+          id: selectedPersonnel.id
         });
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        toast.success('Personnel mis à jour avec succès');
       } else {
-        result = await createPersonnel(formData);
+        // Créer un nouveau personnel
+        const result = await createPersonnel(dataToSubmit);
+        
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        
+        toast.success('Personnel ajouté avec succès');
       }
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      toast.success(`Membre du personnel ${isEditing ? 'modifié' : 'ajouté'} avec succès`);
+      
+      // Fermer le dialogue et rafraîchir les données
       setDialogOpen(false);
       resetForm();
-      
-      // Invalider le cache et rafraîchir les données
-      queryClient.invalidateQueries({ queryKey: ['personnel'] });
-      
+      refetchPersonnel();
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce membre du personnel ?')) {
-      return;
-    }
-
     try {
-      const result = await deletePersonnel(id);
-
+      // Inclure l'ID utilisateur pour la traçabilité
+      const result = await deletePersonnel(id, user?.id);
+      
       if (!result.success) {
-        throw new Error(result.error);
+        // Vérifier s'il s'agit d'une erreur de contrainte (personnel titulaire d'une classe)
+        if (result.isConstraintError) {
+          // Demander confirmation pour une suppression forcée
+          if (confirm(`${result.error}\n\nVoulez-vous forcer la suppression ?`)) {
+            const forceResult = await deletePersonnel(id, user?.id, true);
+            if (forceResult.success) {
+              toast.success(forceResult.message);
+              refetchPersonnel();
+            } else {
+              toast.error(forceResult.error);
+            }
+          }
+        } else {
+          toast.error(result.error);
+        }
+      } else {
+        toast.success(result.message);
+        refetchPersonnel();
       }
-
-      toast.success('Membre du personnel supprimé avec succès');
-      
-      // Invalider le cache et rafraîchir les données
-      queryClient.invalidateQueries({ queryKey: ['personnel'] });
-      
     } catch (error) {
-      toast.error(`Erreur lors de la suppression: ${error.message}`);
+      toast.error(error.message);
     }
   };
   
@@ -359,16 +336,15 @@ export default function PersonnelPage() {
   }
 
   return (
-    <div className="p-4">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-        <h1 className="text-2xl font-bold">Gestion du Personnel</h1>
-          <p className="text-gray-500">Gérez le personnel de l'établissement</p>
+    <div className="container p-4 mx-auto space-y-6">
+      <div className="flex flex-col ">
+        <h1 className="text-2xl  font-bold">Gestion du Personnel</h1>
+        <div className="flex max-sm:flex-col gap-2 m-5">
+          <Button onClick={() => handleOpenDialog()} variant="outline">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Ajouter un membre
+          </Button>
         </div>
-        
-        <Button onClick={() => handleOpenDialog()} className="whitespace-nowrap">
-          <PlusCircle className="mr-2 h-4 w-4" /> Ajouter un membre
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -448,6 +424,7 @@ export default function PersonnelPage() {
                     <TableHead>Nom</TableHead>
                     <TableHead>Poste</TableHead>
                     <TableHead>Contact</TableHead>
+                    <TableHead>Traçabilité</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -472,46 +449,54 @@ export default function PersonnelPage() {
                           </TableCell>
                       </TableRow>
                     ))
-                  ) : (
-                    filteredPersonnel.map((p) => (
-                      <TableRow key={p.id}>
-                      <TableCell className="font-medium">
-                        {p.prenom} {p.nom}
+                  ) : ( filteredPersonnel.map((p, index) => (
+                      <TableRow
+                        key={p.id}
+                        className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}
+                      >
+                        <TableCell className="font-medium">
+                          {p.prenom} {p.nom}
                         </TableCell>
                         <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {p.poste || 'Non défini'}
+                          <Badge variant="outline" className="capitalize">
+                            {p.poste || 'Non défini'}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                        {p.contact || 'N/A'}
+                          {p.contact || 'N/A'}
                         </TableCell>
-                  
-                        <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/dashboard/personnel/${p.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                            <Button 
-                              variant="ghost" 
-                            size="sm" 
+                        <TableCell>
+                          {p.user_nom || 'Non disponible'}
+                        </TableCell>
+                        <TableCell className="text-right flex justify-end">
+                          <div className="flex flex-col gap-1">
+                              <Button variant="ghost" size="sm"  className="bg-black text-white rounded-lg">
+                            <Link href={`/dashboard/personnel/${p.id}`} >
+                                Voir les détails
+                            </Link>
+                              </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="bg-indigo-600 text-white"
                               onClick={() => handleOpenDialog(p)}
                             >
-                              <Pencil className="h-4 w-4" />
+                              Modifier
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                            size="sm"
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="bg-red-600 text-white"
                               onClick={() => handleDelete(p.id)}
                             >
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                              Supprimer
                             </Button>
+                           
                           </div>
                         </TableCell>
                       </TableRow>
                     ))
+                    
                   )}
                 </TableBody>
               </Table>
@@ -679,8 +664,9 @@ export default function PersonnelPage() {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Annuler
               </Button>
-              <Button type="submit">
-                {isEditing ? 'Enregistrer les modifications' : 'Ajouter'}
+              <Button type="submit" disabled={submitLoading}>  
+                {submitLoading  ? 'Enregistrement': `${isEditing ? 'Enregistrer les modifications' : 'Ajouter'}
+             `}   
               </Button>
             </DialogFooter>
           </form>

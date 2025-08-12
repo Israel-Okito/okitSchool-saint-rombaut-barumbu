@@ -38,10 +38,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal, X, User } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -117,11 +118,10 @@ export default function PaiementsSupprimesPage() {
       paiement.nom?.toLowerCase().includes(searchLower) ||
       paiement.prenom?.toLowerCase().includes(searchLower) ||
       paiement.type?.toLowerCase().includes(searchLower) ||
+      paiement.reference_bancaire?.toLowerCase().includes(searchLower) ||
       paiement.description?.toLowerCase().includes(searchLower);
 
     const matchesType = selectedType === 'all' || paiement.type === selectedType;
-
-   
 
     return matchesSearch && matchesType;
   });
@@ -143,7 +143,8 @@ export default function PaiementsSupprimesPage() {
 
   return (
     <div className="container mx-auto p-2">
-       <Button className='mb-5 cursor-pointer' onClick={() => router.push('/dashboard/eleves')}>
+       <Button className='text-xs mb-5 cursor-pointer' onClick={() => router.push('/dashboard/paiements')}>
+          <ArrowLeft className='h-4 w-4'/>
           Retour à la liste de tous les paiements
         </Button>
       {/* Statistiques */}
@@ -236,37 +237,75 @@ export default function PaiementsSupprimesPage() {
                     <TableHead>Élève</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Montant</TableHead>
+                    <TableHead>Référence bancaire</TableHead>
+                    <TableHead>Traçabilité</TableHead>
+                    <TableHead>Date de paiement</TableHead>
                     <TableHead>Date de suppression</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedPaiements.map((paiement) => (
-                    <TableRow key={paiement.id}>
-                      <TableCell>
-                        {paiement.nom} {paiement.prenom}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{paiement.type}</Badge>
-                      </TableCell>
-                      <TableCell>{paiement.montant} $</TableCell>
-                      <TableCell>
-                        {format(new Date(paiement.date), 'PPP', { locale: fr })}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(paiement.deleted_at), 'PPP', { locale: fr })}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(paiement)}
-                        >
-                          Supprimer définitivement
-                        </Button>
+                  {paginatedPaiements.length > 0 ? (
+                    paginatedPaiements.map((paiement) => (
+                      <TableRow key={paiement.id}>
+                        <TableCell>
+                          {paiement.nom} {paiement.prenom}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{paiement.type}</Badge>
+                        </TableCell>
+                        <TableCell>{paiement.montant} $</TableCell>
+                        <TableCell>
+                          {paiement.reference_bancaire || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {paiement.user_nom ? (
+                            <div className="flex items-center">
+                              <User className="h-3 w-3 mr-1" />
+                              <span className="text-xs">{paiement.user_nom}</span>
+                            </div>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(paiement.date), 'PPP', { locale: fr })}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(paiement.deleted_at), 'PPP', { locale: fr })}
+                        </TableCell>
+                       
+                        <TableCell>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(paiement)}
+                          >
+                            Supprimer définitivement
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="text-gray-400 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                              <circle cx="9" cy="7" r="4"></circle>
+                              <line x1="19" y1="8" x2="19" y2="14"></line>
+                              <line x1="22" y1="11" x2="16" y2="11"></line>
+                            </svg>
+                          </div>
+                          <p className="text-gray-500 font-medium">Aucun paiement supprimé trouvé</p>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {searchTerm || selectedType !== 'all' ? 
+                              "Aucun résultat ne correspond à vos critères de recherche" : 
+                              "Il n'y a pas de paiements supprimés à afficher"}
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
 

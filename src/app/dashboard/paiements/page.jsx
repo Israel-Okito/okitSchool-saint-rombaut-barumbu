@@ -18,6 +18,8 @@ import { usePaiementsQuery } from '@/hooks/usePaiementsQuery';
 import { useQuery } from '@tanstack/react-query';
 import { useUser } from '@/lib/UserContext';
 import { createClient } from '@/utils/supabase/client';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import ReceiptButton from '@/components/Report_Button/ReceiptButton';
 
 
 // Map pour le cache utilisateur
@@ -117,6 +119,11 @@ export default function PaiementsPage() {
   const [filteredEleves, setFilteredEleves] = useState([]);
   const [userNames, setUserNames] = useState({});
   const [userRole, setUserRole] = useState(null);
+  const [isSearchingEleves, setIsSearchingEleves] = useState(false);
+  const [isSearchingLocally, setIsSearchingLocally] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -138,16 +145,67 @@ export default function PaiementsPage() {
     user_id: ''
   });
 
+ // Dans les hooks de Query
+ const { 
+  data: anneeActive,
+  isLoading: isAnneeLoading
+} = useQuery({
+  queryKey: ['annee-scolaire-active'],
+  queryFn: async () => {
+    const response = await fetch('/api/bypass-rls/list', {
+      cache: 'force-cache'
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération de l\'année scolaire');
+    }
+    
+    return response.json();
+  },
+  staleTime: 60 * 60 * 1000, // 1 heure
+  refetchOnWindowFocus: false
+});
+
 
   // Debounce du terme de recherche
   useEffect(() => {
+    // Si la recherche est courte (moins de 3 caractères), on filtre localement
+    if (searchTerm.length < 3) {
+      setIsSearchingLocally(true);
+      filterPaiementsLocally();
+      return;
+    }
+    
+    // Pour les recherches plus longues, on peut décider de filtrer localement ou via l'API
+    setIsSearchingLocally(true); // On privilégie toujours le filtrage local pour une meilleure UX
+    
     const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+      // On ne met à jour le terme debounced que si on veut une recherche serveur
+      if (!isSearchingLocally) {
+        setDebouncedSearchTerm(searchTerm);
+        setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
+      }
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, isSearchingLocally]);
+
+
+    // Debounce pour la recherche d'élèves
+    useEffect(() => {
+      setIsSearchingEleves(true);
+      const timer = setTimeout(() => {
+        if (eleveSearchTerm) {
+          searchEleves(eleveSearchTerm);
+        } else {
+          setFilteredEleves([]);
+        }
+        setIsSearchingEleves(false);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }, [eleveSearchTerm]);
+  
 
   // Initialiser le formulaire avec l'ID utilisateur du contexte
   useEffect(() => {
@@ -211,19 +269,76 @@ export default function PaiementsPage() {
     }
   }, [userNames]);
 
-  // Mise à jour des données filtrées quand les données changent
+    // Filtrage local des paiements pour une recherche plus fluide
+    const filterPaiementsLocally = useCallback(() => {
+      if (!paiementsData?.data) {
+        setFilteredPaiements([]);
+        return;
+      }
+      
+      let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
+      const eleves = elevesData?.data || [];
+        
+      // Filtre par texte (nom de l'élève, type, description, référence bancaire)
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        result = result.filter(
+          paiement => {
+            const eleve = eleves.find(e => e && e.id === paiement?.eleve_id);
+            return (
+              (eleve && (
+                eleve.nom?.toLowerCase().includes(searchLower) ||
+                eleve.prenom?.toLowerCase().includes(searchLower)
+              )) ||
+              paiement.type?.toLowerCase().includes(searchLower) ||
+              paiement.reference_bancaire?.toLowerCase().includes(searchLower) ||
+              paiement.description?.toLowerCase().includes(searchLower)
+            );
+          }
+        );
+      }
+      
+      // Filtre par montant (supérieur ou égal à)
+      if (searchMontant && !isNaN(parseFloat(searchMontant))) {
+        const montantMin = parseFloat(searchMontant);
+        result = result.filter(paiement => {
+          const montant = parseFloat(paiement?.montant) || 0;
+          return montant >= montantMin;
+        });
+      }
+      
+      setFilteredPaiements(result);
+    }, [paiementsData, elevesData, searchTerm, searchMontant]);
+  
+
+  // Mise à jour des données filtrées quand les données changent ou quand les critères de recherche changent
   useEffect(() => {
     if (paiementsData?.data) {
-      filterPaiements();
-      fetchUserNames(paiementsData.data);
+      filterPaiementsLocally();
+      
+      // Ne déclencher fetchUserNames que si nécessaire
+      const needsUserNames = paiementsData.data.some(p => 
+        p.user_id && !p.user_nom && !userCache.has(p.user_id)
+      );
+      if (needsUserNames) {
+        fetchUserNames(paiementsData.data);
+      }
       
       // Mettre à jour le total des paiements pour la pagination
       if (paiementsData.total) {
         setTotalPaiements(paiementsData.total);
       }
     }
-  }, [paiementsData, searchTerm, searchMontant, elevesData, fetchUserNames]);
+  }, [paiementsData, filterPaiementsLocally]);
+
+  // Appliquer le filtrage local quand les critères de recherche changent
+  useEffect(() => {
+    if (paiementsData?.data) {
+      filterPaiementsLocally();
+    }
+  }, [searchTerm, searchMontant, filterPaiementsLocally]);
   
+
   // Mise à jour des statistiques globales
   useEffect(() => {
     if (globalStatsData?.stats) {
@@ -234,28 +349,35 @@ export default function PaiementsPage() {
     }
   }, [globalStatsData]);
 
+
+  
   // Fonction de filtrage des paiements
   const filterPaiements = useCallback(() => {
-    if (!paiementsData?.data) return;
+    if (!paiementsData?.data) {
+      setFilteredPaiements([]);
+      return;
+    }
     
-    let result = [...paiementsData.data];
+    let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
     const eleves = elevesData?.data || [];
       
-    // Filtre par texte (nom de l'élève, type, description)
-    if (searchTerm && !debouncedSearchTerm) {
-      // Filtrer localement seulement si le terme de recherche n'est pas encore débounced
-      result = result.filter(
-        paiement => {
-          const eleve = eleves.find(e => e.id === paiement.eleve_id);
-          return eleve && (
-            eleve.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            eleve.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            paiement.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            paiement.description?.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-        }
-      );
-    }
+      // Filtre par texte (nom de l'élève, type, description, référence bancaire)
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        result = result.filter(
+          paiement => {
+            const eleve = eleves.find(e => e && e.id === paiement?.eleve_id);
+            return (
+              (eleve && (
+                eleve.nom?.toLowerCase().includes(searchLower) ||
+                eleve.prenom?.toLowerCase().includes(searchLower)
+              )) ||
+              paiement.type?.toLowerCase().includes(searchLower) ||
+              paiement.description?.toLowerCase().includes(searchLower)
+            );
+          }
+        );
+      }
     
     // Filtre par montant (supérieur ou égal à)
     if (searchMontant && !isNaN(parseFloat(searchMontant))) {
@@ -267,10 +389,10 @@ export default function PaiementsPage() {
     }
     
     setFilteredPaiements(result);
-  }, [paiementsData, elevesData, searchTerm, debouncedSearchTerm, searchMontant]);
+  }, [paiementsData, elevesData, searchTerm, searchMontant]);
 
-  // Filtrer les élèves pour la recherche dans le formulaire
-  useEffect(() => {
+   // Filtrer les élèves pour la recherche dans le formulaire
+   useEffect(() => {
     if (elevesData?.data && elevesData.data.length > 0) {
       if (eleveSearchTerm.trim() === '') {
         setFilteredEleves(elevesData.data);
@@ -281,6 +403,7 @@ export default function PaiementsPage() {
       setFilteredEleves([]);
     }
   }, [eleveSearchTerm, elevesData]);
+
 
   const calculateStats = useCallback((data, total) => {
     const newStats = {
@@ -359,6 +482,7 @@ export default function PaiementsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitLoading(true)
     
     if (!formData.eleve_id || !formData.date || !formData.montant || !formData.type) {
       toast.error('Veuillez remplir tous les champs obligatoires');
@@ -375,6 +499,16 @@ export default function PaiementsPage() {
       }
 
       toast.success(result.message || `Paiement ${isEditing ? 'modifié' : 'ajouté'} avec succès`);
+   
+      if (result.receiptData) {
+        setReceiptData({
+          ...result.receiptData,
+          anneeScolaire: result.receiptData.anneeScolaire || anneeActive?.data || { libelle: 'Année en cours' }
+        });
+        setReceiptDialogOpen(true);
+      }
+ 
+ 
       setDialogOpen(false);
       resetForm();
       
@@ -400,10 +534,12 @@ export default function PaiementsPage() {
     } catch (error) {
       console.error(`Erreur lors de ${isEditing ? 'la modification' : 'l\'ajout'} du paiement:`, error);
       toast.error(`Impossible de ${isEditing ? 'modifier' : 'créer'} le paiement: ${error.message}`);
+    }finally{
+      setSubmitLoading(false)
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDeletePaiement = async (id) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce paiement ? Cette action est irréversible.')) {
       return;
     }
@@ -617,61 +753,59 @@ export default function PaiementsPage() {
               <div className="grid gap-2">
                 <Label htmlFor="eleve_id">Élève</Label>
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Rechercher par nom, prénom ou post-nom..."
-                      className="pl-8"
-                      value={eleveSearchTerm}
-                      onChange={(e) => {
-                        setEleveSearchTerm(e.target.value);
-                        if (e.target.value.length >= 2) {
-                          searchEleves(e.target.value);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={formData.eleve_id}
-                      onValueChange={(value) => handleSelectChange('eleve_id', value)}
-                    >
-                      <SelectTrigger id="eleve_id" className="flex-1">
-                        <SelectValue placeholder="Sélectionner un élève" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredEleves.map((eleve) => (
-                          <SelectItem key={eleve.id} value={eleve.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{eleve.prenom} {eleve.nom} {eleve.postnom}</span>
-                              <span className="text-xs text-muted-foreground">{eleve.classes?.nom || 'Non assigné'}</span>
+                <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="Rechercher un élève par nom ou prénom..."
+                        value={eleveSearchTerm}
+                        onChange={(e) => setEleveSearchTerm(e.target.value)}
+                        className="mb-2 pl-8 border-blue-300 focus:border-blue-500"
+                      />
+                      <Search className="absolute left-2 top-3 h-4 w-4 text-blue-500" />
+                      {isSearchingEleves && (
+                        <div className="absolute right-2 top-3">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                        </div>
+                      )}
+                      {eleveSearchTerm && filteredEleves.length > 0 && !formData.eleve_id && (
+                        <div className="absolute z-10 w-full max-h-40 overflow-auto bg-white border rounded-md shadow-lg">
+                          {filteredEleves.map(eleve => (
+                            <div
+                              key={eleve.id}
+                              className="p-2 hover:bg-gray-100 cursor-pointer"
+                              onClick={() => {
+                                setFormData({...formData, eleve_id: eleve.id.toString()});
+                                setEleveSearchTerm(`${eleve.prenom} ${eleve.nom}`);
+                                setFilteredEleves([]);
+                              }}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{eleve.prenom} {eleve.nom} {eleve.postnom ? `(${eleve.postnom})` : ''}</span>
+                                {eleve.classes && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
+                                    {eleve.classes.nom || "Classe non définie"}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          ))}
+                        </div>
+                      )}
+                      {eleveSearchTerm && filteredEleves.length === 0 && eleveSearchTerm.length >= 2 && (
+                        <div className="absolute z-10 w-full bg-white border rounded-md shadow-lg p-3 text-center">
+                          <p className="text-gray-500">Aucun élève trouvé</p>
+                        </div>
+                      )}
+                    </div>
                     {formData.eleve_id && (
-                      <div className="flex items-center px-3 py-2 border rounded-md bg-muted/50">
-                        {(() => {
-                          const selectedEleve = elevesData?.data.find(e => e.id === parseInt(formData.eleve_id));
-                          return selectedEleve ? (
-                            <div className="flex flex-col">
-                              <span className="font-medium">{selectedEleve.prenom} {selectedEleve.nom} {selectedEleve.postnom}</span>
-                              <span className="text-xs text-muted-foreground">{selectedEleve.classes?.nom || 'Non assigné'}</span>
-                            </div>
-                          ) : null;
-                        })()}
+                      <div className="p-2 bg-muted rounded-md text-sm mt-1">
+                        Élève sélectionné: {
+                          elevesData?.data?.find(e => e.id.toString() === formData.eleve_id.toString())
+                            ? `${elevesData.data.find(e => e.id.toString() === formData.eleve_id.toString()).prenom} ${elevesData.data.find(e => e.id.toString() === formData.eleve_id.toString()).nom}`
+                            : 'Non trouvé'
+                      }
                       </div>
                     )}
-                  </div>
-                  {filteredEleves.length === 0 && eleveSearchTerm && (
-                    <p className="text-sm text-muted-foreground">Aucun élève trouvé</p>
-                  )}
-                  {eleveSearchTerm && filteredEleves.length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {filteredEleves.length} élève(s) trouvé(s)
-                    </p>
-                  )}
                 </div>
               </div>
               
@@ -734,9 +868,13 @@ export default function PaiementsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">
-                {isEditing ? 'Mettre à jour' : 'Ajouter'}
-              </Button>
+         
+              <Button 
+                      type="submit" 
+                      disabled={submitLoading}
+                    >
+                    {submitLoading ? 'Enregistrement...' : isEditing ? 'Modifier' : 'Ajouter'}
+                    </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -762,7 +900,7 @@ export default function PaiementsPage() {
                   <TableHead>Montant</TableHead>
                 <TableHead>Type</TableHead>
                   <TableHead>Libellé</TableHead>
-                  <TableHead>Utilisateur</TableHead>
+                  <TableHead>Traçabilité</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -785,10 +923,11 @@ export default function PaiementsPage() {
                     </TableRow>
                   ))
                 ) : (
-                  filteredPaiements.map((paiement) => {
-                    const eleve = elevesData?.data.find(e => e.id === paiement.eleve_id);
+                    filteredPaiements.map((paiement, index) => {
+                      // Trouver l'élève correspondant au paiement
+                      const eleve = elevesData?.data?.find(e => e && e.id === paiement?.eleve_id);
                     return (
-                    <TableRow key={paiement.id}>
+                      <TableRow key={paiement.id}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
                         <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : '-'}</TableCell>
                         <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
                         <TableCell>{paiement.montant} $</TableCell>
@@ -797,30 +936,68 @@ export default function PaiementsPage() {
                             paiement.type === 'Scolarite' ? 'bg-green-100 text-green-800' : 
                             paiement.type === 'FraisDivers' ? 'bg-purple-100 text-purple-800' : 
                             paiement.type === 'FraisConnexes' ? 'bg-indigo-100 text-indigo-800' : 
-                            'bg-orange-100 text-orange-800'
+                              paiement.type === 'autres' ? 'bg-orange-100 text-orange-800' : 
+                              'bg-gray-100 text-gray-800'
                           }`}>
                             {paiement.type}
                           </div>
                       </TableCell>
-                        <TableCell>{paiement.description || '-'}</TableCell>
-                        <TableCell>{userNames[paiement.user_id] || 'Utilisateur inconnu'}</TableCell>
+                          <TableCell className="max-w-[120px] truncate hidden md:table-cell">
+                            {paiement.description || '-'}
+                          </TableCell>
+                          <TableCell >
+                            {paiement.user_nom || userNames[paiement.user_id] || 'Utilisateur inconnu'}
+                          </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                            <div className="flex items-center justify-end space-x-2">
+                              {/* S'assurer que toutes les données nécessaires sont présentes pour le reçu */}
+                              {eleve && (
+                                <ReceiptButton 
+                                  receiptData={{
+                                    eleve,
+                                    paiement, 
+                                    anneeScolaire: anneeActive?.data || { 
+                                      libelle: 'Année en cours'
+                                    }
+                                  }} 
+                                  isIcon 
+                                />
+                              )}
+                          <div className='flex flex-col gap-1'> 
                             <Button 
-                              variant="outline" 
-                              size="sm" 
+                                variant="ghost"
                               onClick={() => handleOpenDialog(paiement)}
+                                title="Modifier"
+                                className="bg-indigo-600 text-white"
                             >
-                              <Pencil className="h-4 w-4" />
+                                Modifier
                             </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
                             <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-red-500" 
-                              onClick={() => handleDelete(paiement.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
+                                    variant="ghost"
+                                    title="Supprimer"
+                                    className="bg-red-600 text-white"
+                                  >
+                                  Supprimer
                             </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Êtes-vous sûr de vouloir supprimer ce paiement ? Cette action ne peut pas être annulée.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeletePaiement(paiement.id)}>
+                                      Supprimer
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                          </div>
                           </div>
                         </TableCell>
                     </TableRow>
@@ -833,6 +1010,75 @@ export default function PaiementsPage() {
           )}
         </CardContent>
       </Card>
+
+   {/* Dialogue de reçu */}
+   <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reçu de paiement généré</DialogTitle>
+              <DialogDescription>
+                Le paiement a été enregistré avec succès. Que souhaitez-vous faire avec le reçu?
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex justify-center py-6">
+              {receiptData && (
+                <div className="flex flex-col space-y-4 w-full">
+                  <div className="p-4 border rounded-lg bg-muted/50">
+                    <p className="text-sm font-medium">Élève: {receiptData.eleve?.prenom} {receiptData.eleve?.nom}</p>
+                    <p className="text-sm">Montant: {receiptData.paiement?.montant} $</p>
+                    <p className="text-sm">Date: {new Date(receiptData.paiement?.date).toLocaleDateString()}</p>
+                    <p className="text-sm">Type: {receiptData.paiement?.type}</p>
+                    {receiptData.paiement?.type === 'Paiement multiple' && receiptData.paiement?.detailsPaiement && (
+                      <div className="mt-2 border-t pt-2">
+                        <p className="text-sm font-medium">Détails du paiement:</p>
+                        <ul className="text-xs space-y-1 mt-1">
+                          {receiptData.paiement.detailsPaiement.map((detail, idx) => (
+                            <li key={idx}>
+                              {detail.libelle}: {parseFloat(detail.montant).toFixed(2)} $
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <p className="text-sm text-muted-foreground">Année scolaire: {receiptData.anneeScolaire?.libelle || "Année en cours"}</p>
+                  </div>
+                  
+                  <div className="flex justify-center gap-4">
+                    <ReceiptButton 
+                      receiptData={{
+                        eleve: {
+                          ...receiptData.eleve,
+                          // Assurer la compatibilité avec le format attendu dans le reçu
+                          classes: receiptData.eleve.classes || receiptData.eleve.classe || { 
+                            nom: receiptData.eleve.classe?.nom || 'N/A', 
+                            frais_scolaire: receiptData.eleve.classe?.frais_scolaire || 'N/A' 
+                          }
+                        },
+                        paiement: receiptData.paiement,
+                        anneeScolaire: receiptData.anneeScolaire
+                      }}
+                      // receiptData={receiptData}
+                      variant="outline"
+                      size="default"
+                      text="Télécharger le reçu"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter className="sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setReceiptDialogOpen(false)}
+              >
+                Fermer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center space-x-4 mt-6">

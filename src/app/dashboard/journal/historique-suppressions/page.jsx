@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, ArrowLeft, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
 
 export default function HistoriqueSuppressionsPage() {
@@ -87,7 +87,6 @@ export default function HistoriqueSuppressionsPage() {
         setIsAuthorized(true);
         fetchDeletedHistory();
       } else {
-        // Rediriger vers le dashboard si non autorisé
         router.push('/dashboard');
       }
     } catch (err) {
@@ -151,7 +150,7 @@ export default function HistoriqueSuppressionsPage() {
   };
 
   const goBack = () => {
-    router.push('/dashboard/journal');
+    router.back();
   };
 
   const totalPages = Math.ceil(totalEntries / entriesPerPage);
@@ -185,9 +184,9 @@ export default function HistoriqueSuppressionsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-      <h1 className="text-xl sm:text-2xl mb-2 font-bold">Historique des suppressions</h1>
+      <h1 className="text-lg sm:text-2xl mb-2 font-bold">Historique des suppressions</h1>
     
         <div className="flex items-center space-x-4 mb-4 sm:mb-0">
           <Button variant="outline" onClick={goBack}>
@@ -241,6 +240,7 @@ export default function HistoriqueSuppressionsPage() {
                       <TableHead>Type</TableHead>
                       <TableHead>Montant</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead>Traçabilité</TableHead>
                       <TableHead>Supprimé le</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -258,15 +258,16 @@ export default function HistoriqueSuppressionsPage() {
                         </TableCell>
                         <TableCell>{Number(entry.montant).toFixed(2)} $</TableCell>
                         <TableCell>{entry.description || '-'}</TableCell>
+                        <TableCell>{entry.user_nom || '-'}</TableCell>
                         <TableCell>{format(new Date(entry.deleted_at), 'dd/MM/yyyy HH:mm', { locale: fr })}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
-                            size="icon"
                             onClick={() => handlePermanentDelete(entry.id)}
                             title="Supprimer définitivement"
+                            className='bg-red-500 text-white'
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            Supprimer
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -277,7 +278,7 @@ export default function HistoriqueSuppressionsPage() {
             
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex justify-center items-center space-x-4 mt-6">
+                <div className="flex justify-center items-center space-x-2 mt-6">
                   <Button
                     variant="outline"
                     size="sm"

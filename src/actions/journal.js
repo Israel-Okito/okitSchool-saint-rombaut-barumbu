@@ -34,44 +34,67 @@ export async function createJournalEntry(formData) {
   const supabase = await createClient();
   
   try {
-    const annee_scolaire_id = await getAnneeActive();
-    
-    // Mapper les valeurs frontend vers les valeurs d'ENUM de la base de données
-    const typeValue = formData.type === 'entree' ? 'entree' : 'sortie';
+    const { data: anneeActive, error: anneeError } = await supabase
+      .from('annee_scolaire')
+      .select('id, libelle')
+      .eq('est_active', true)
+      .single();
 
-    // Vérifier si la catégorie est requise pour les sorties
-    if (typeValue === 'sortie' && !formData.categorie) {
-      throw new Error('La rubrique est obligatoire pour les sorties');
+    if (anneeError || !anneeActive) {
+      throw new Error("Aucune année scolaire active n'a été trouvée");
     }
 
-    // Construction des données à insérer
-    const insertData = { 
-      date: formData.date, 
-      description: formData.description, 
-      montant: parseFloat(formData.montant), 
-      type: typeValue,
-      annee_scolaire_id
+    // Validation des champs obligatoires
+    const requiredFields = ['date', 'type', 'montant'];
+    for (const field of requiredFields) {
+      if (!formData[field]) {
+        throw new Error(`Le champ '${field}' est obligatoire`);
+      }
+    }
+
+    // Assurer que le montant est un nombre
+    const montantValue = parseFloat(formData.montant);
+    if (isNaN(montantValue)) {
+      throw new Error('Le montant doit être un nombre valide');
+    }
+
+    // Données à insérer
+    const dataToInsert = {
+      date: formData.date,
+      type: formData.type,
+      montant: montantValue,
+      description: formData.description || '',
+      categorie: formData.categorie || '',
+      annee_scolaire_id: anneeActive.id
     };
 
-    // Ajouter la catégorie uniquement si c'est une sortie
-    if (typeValue === 'sortie') {
-      insertData.categorie = formData.categorie;
-    }
-
-    // N'ajouter le user_id que s'il est fourni
+    // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni
     if (formData.user_id) {
-      insertData.user_id = formData.user_id;
+      dataToInsert.user_id = formData.user_id;
+      
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToInsert.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
     }
 
     const { data, error } = await supabase
       .from('journal_de_caisse')
-      .insert([insertData])
-      .select();
+      .insert(dataToInsert)
+      .select()
+      .single();
 
     if (error) throw error;
 
     revalidatePath('/dashboard/journal');
-    return { success: true, data: data[0] };
+    return { success: true, data, message: 'Entrée ajoutée avec succès' };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -81,45 +104,61 @@ export async function updateJournalEntry(formData) {
   const supabase = await createClient();
   
   try {
-    // Mapper les valeurs frontend vers les valeurs d'ENUM de la base de données
-    const typeValue = formData.type === 'entree' ? 'entree' : 'sortie';
-    
-    // Vérifier si la catégorie est requise pour les sorties
-    if (typeValue === 'sortie' && !formData.categorie) {
-      throw new Error('La rubrique est obligatoire pour les sorties');
+    if (!formData.id) {
+      throw new Error('ID de l\'entrée manquant');
     }
-    
-    // Construction des données à mettre à jour
-    const updateData = {
+
+    // Validation des champs obligatoires
+    const requiredFields = ['date', 'type', 'montant'];
+    for (const field of requiredFields) {
+      if (!formData[field]) {
+        throw new Error(`Le champ '${field}' est obligatoire`);
+      }
+    }
+
+    // Assurer que le montant est un nombre
+    const montantValue = parseFloat(formData.montant);
+    if (isNaN(montantValue)) {
+      throw new Error('Le montant doit être un nombre valide');
+    }
+
+    // Données à mettre à jour
+    const dataToUpdate = {
       date: formData.date,
-      description: formData.description,
-      montant: parseFloat(formData.montant),
-      type: typeValue
+      type: formData.type,
+      montant: montantValue,
+      description: formData.description || '',
+      categorie: formData.categorie || ''
     };
-    
-    // Ajouter la catégorie uniquement si c'est une sortie
-    if (typeValue === 'sortie') {
-      updateData.categorie = formData.categorie;
-    } else {
-      // Pour les entrées, mettre explicitement la catégorie à null
-      updateData.categorie = null;
-    }
-    
-    // N'ajouter le user_id que s'il est fourni
+
+    // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni
     if (formData.user_id) {
-      updateData.user_id = formData.user_id;
+      dataToUpdate.user_id = formData.user_id;
+      
+      // Récupérer les informations de l'utilisateur pour stocker son nom
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', formData.user_id)
+        .single();
+        
+      if (!userError && userData) {
+        // Stocker le nom complet de l'utilisateur pour la traçabilité
+        dataToUpdate.user_nom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
     }
 
     const { data, error } = await supabase
       .from('journal_de_caisse')
-      .update(updateData)
+      .update(dataToUpdate)
       .eq('id', formData.id)
-      .select();
+      .select()
+      .single();
 
     if (error) throw error;
 
     revalidatePath('/dashboard/journal');
-    return { success: true, data: data[0] };
+    return { success: true, data, message: 'Entrée mise à jour avec succès' };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -129,49 +168,45 @@ export async function deleteJournalEntry(id) {
   const supabase = await createClient();
   
   try {
+    if (!id) {
+      throw new Error('ID de l\'entrée manquant');
+    }
+
     // Récupérer d'abord l'entrée à supprimer
     const { data: entry, error: fetchError } = await supabase
       .from('journal_de_caisse')
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (fetchError) throw fetchError;
     if (!entry) throw new Error('Entrée non trouvée');
-    
-    // Exécuter les opérations dans une transaction
-    // 1. Enregistrer dans l'historique
-    // 2. Supprimer l'entrée originale
-    const { error: insertHistoryError } = await supabase
+
+    // Copier l'entrée dans la table d'historique
+    const { error: historyError } = await supabase
       .from('journal_de_caisse_deleted')
-      .insert([{
+      .insert({
+        ...entry,
         original_id: entry.id,
-        date: entry.date,
-        description: entry.description,
-        montant: entry.montant,
-        type: entry.type,
-        categorie: entry.categorie,
-        user_id: entry.user_id,
         deleted_at: new Date().toISOString()
-      }]);
-    
-    if (insertHistoryError) throw insertHistoryError;
-    
+      });
+
+    if (historyError) throw historyError;
+
     // Supprimer l'entrée originale
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from('journal_de_caisse')
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (deleteError) throw deleteError;
 
     revalidatePath('/dashboard/journal');
-    return { success: true };
+    return { success: true, message: 'Entrée supprimée avec succès' };
   } catch (error) {
     return { success: false, error: error.message };
   }
 }
-
 
 export async function getJournalDeletedHistory(offset = 0, limit = 10, searchTerm = '') {
   const supabase = await createClient();
@@ -189,10 +224,12 @@ export async function getJournalDeletedHistory(offset = 0, limit = 10, searchTer
         date, 
         description, 
         montant, 
+        user_id,
+        user_nom,
         type, 
         categorie, 
         deleted_at`, { count: 'exact' })
-      // .eq('annee_scolaire_id', annee_scolaire_id)
+      .eq('annee_scolaire_id', annee_scolaire_id)
       .order('deleted_at', { ascending: false });
     
     // Ajouter un filtre de recherche si un terme est fourni
