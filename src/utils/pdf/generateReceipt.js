@@ -250,42 +250,42 @@ doc.text(doc.splitTextToSize(convertirMontantEnLettres(paiement.montant), 100), 
   //   doc.text("BANQUE : EQUITY BCDC", 48, yPosition);
   
   
-  // Solde des frais scolaires
-  yPosition += 10;
-  doc.setFont('helvetica', 'normal');
-  doc.text("SOLDE FRAIS SCOLAIRE : ", 33, yPosition);
-  doc.setFont('helvetica', 'bold');
+  // // Solde des frais scolaires
+  // yPosition += 10;
+  // doc.setFont('helvetica', 'normal');
+  // doc.text("SOLDE FRAIS SCOLAIRE : ", 33, yPosition);
+  // doc.setFont('helvetica', 'bold');
   
-  // Calculer le solde des frais scolaires
-  let solde = 0;
+  // // Calculer le solde des frais scolaires
+  // let solde = 0;
   
-  // Utiliser directement les informations de fraisScolarite si disponibles
-  if (data.fraisScolarite) {
-    solde = parseFloat(data.fraisScolarite.montantRestant) || 0;
-  } 
-  // Sinon, calculer à partir des données disponibles
-  else {
-    // Récupérer les frais scolaires de la classe
-    let fraisScolaire = 0;
-    if (eleve.classes && eleve.classes.frais_scolaire) {
-      fraisScolaire = parseFloat(eleve.classes.frais_scolaire);
-      if (isNaN(fraisScolaire)) {
-        fraisScolaire = 0;
-      }
-    }
+  // // Utiliser directement les informations de fraisScolarite si disponibles
+  // if (data.fraisScolarite) {
+  //   solde = parseFloat(data.fraisScolarite.montantRestant) || 0;
+  // } 
+  // // Sinon, calculer à partir des données disponibles
+  // else {
+  //   // Récupérer les frais scolaires de la classe
+  //   let fraisScolaire = 0;
+  //   if (eleve.classes && eleve.classes.frais_scolaire) {
+  //     fraisScolaire = parseFloat(eleve.classes.frais_scolaire);
+  //     if (isNaN(fraisScolaire)) {
+  //       fraisScolaire = 0;
+  //     }
+  //   }
     
-    // Si c'est un paiement de scolarité, le prendre en compte dans le calcul du solde
-    if (paiement.type === 'Scolarite') {
-      const fraisPaye = parseFloat(paiement.montant || 0);
-      // Le solde est la différence entre les frais totaux et le montant payé
-      solde = Math.max(0, fraisScolaire - fraisPaye);
-    } else {
-      // Si ce n'est pas un paiement de scolarité, le solde est le montant total des frais
-      solde = fraisScolaire;
-    }
-  }
+  //   // Si c'est un paiement de scolarité, le prendre en compte dans le calcul du solde
+  //   if (paiement.type === 'Scolarite') {
+  //     const fraisPaye = parseFloat(paiement.montant || 0);
+  //     // Le solde est la différence entre les frais totaux et le montant payé
+  //     solde = Math.max(0, fraisScolaire - fraisPaye);
+  //   } else {
+  //     // Si ce n'est pas un paiement de scolarité, le solde est le montant total des frais
+  //     solde = fraisScolaire;
+  //   }
+  // }
   
-  doc.text(`USD ${formatMontantForDisplay(solde)}`, 105, yPosition);
+  // doc.text(`USD ${formatMontantForDisplay(solde)}`, 105, yPosition);
   
   // Signatures
   yPosition += 20;

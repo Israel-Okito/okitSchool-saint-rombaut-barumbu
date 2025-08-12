@@ -357,7 +357,7 @@ export default function JournalPage() {
               </Button>
             </Link>
           )}
-          <JournalReportButton />
+          {/* <JournalReportButton /> */}
           <Button onClick={() => handleOpenDialog()}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Nouvelle entrée

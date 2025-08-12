@@ -199,9 +199,9 @@ export default function ClasseDetailsPage() {
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        {/* <div className="flex gap-2">
           <ClassePaiementsReportButton classId={id} classeData={data} />
-        </div>
+        </div> */}
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -341,7 +341,7 @@ export default function ClasseDetailsPage() {
         <TabsList className=" flex gap-2 justify-between items-center w-full overflow-x-auto">
           <TabsTrigger value="all">Tous ({filteredEleves.length})</TabsTrigger>
           <TabsTrigger value="paid">Payé ({filteredElevesPaies.length})</TabsTrigger>
-          <TabsTrigger value="unpaid">Non payé ({filteredElevesNonPaies.length})</TabsTrigger>
+          {/* <TabsTrigger value="unpaid">Non payé ({filteredElevesNonPaies.length})</TabsTrigger> */}
           <TabsTrigger value="gender">
             <div className="flex items-center space-x-1">
               <UserRound className="h-4 w-4" />
