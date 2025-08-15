@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClass, updateClass, deleteClass } from '@/actions/classes';
-import { School, ChevronLeft, ChevronRight, Loader, PlusCircle, Search } from 'lucide-react';
+import { School, ChevronLeft, ChevronRight, Loader, PlusCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { useClassesDetailedQuery } from '@/hooks/useClassesDetailedQuery';
@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 
 export default function ClassesPage() {
   const { user } = useUser();
-  const [allClasses, setAllClasses] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -29,7 +29,6 @@ export default function ClassesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [niveauFilter, setNiveauFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const classesPerPage = 10;
@@ -51,7 +50,8 @@ export default function ClassesPage() {
     refetch: refetchClasses
   } = useClassesDetailedQuery({
     page: currentPage,
-    limit: 100, // Récupérer plus de classes pour permettre le filtrage côté client
+    limit: classesPerPage,
+    niveau: niveauFilter
   });
 
   // Utiliser React Query pour récupérer le personnel
@@ -67,40 +67,16 @@ export default function ClassesPage() {
     'Primaire'
   ];
 
-  // Filtrage côté client
-  const filteredClasses = useMemo(() => {
-    if (!allClasses.length) return [];
-    
-    return allClasses.filter(classe => {
-      const matchesNiveau = !niveauFilter || niveauFilter === 'Tous les niveaux' || classe.niveau === niveauFilter;
-      const matchesSearch = !searchQuery || 
-        classe.nom.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      return matchesNiveau && matchesSearch;
-    });
-  }, [allClasses, niveauFilter, searchQuery]);
   
-  // Pagination côté client
-  const paginatedClasses = useMemo(() => {
-    const startIndex = (currentPage - 1) * classesPerPage;
-    return filteredClasses.slice(startIndex, startIndex + classesPerPage);
-  }, [filteredClasses, currentPage, classesPerPage]);
 
-  // Mettre à jour le nombre total de pages en fonction des résultats filtrés
-  useEffect(() => {
-    setTotalPages(Math.max(1, Math.ceil(filteredClasses.length / classesPerPage)));
-    // Si la page actuelle dépasse le nombre total de pages, revenir à la première page
-    if (currentPage > Math.ceil(filteredClasses.length / classesPerPage) && filteredClasses.length > 0) {
-      setCurrentPage(1);
-    }
-  }, [filteredClasses, classesPerPage, currentPage]);
   
   // Mettre à jour les états locaux lorsque les données React Query changent
   useEffect(() => {
     if (classesData?.success) {
-      setAllClasses(classesData.data || []);
+      setClasses(classesData.data || []);
+      setTotalPages(classesData.totalPages || Math.ceil((classesData.total || classesData.data.length) / classesPerPage));
     }
-  }, [classesData]);
+  }, [classesData, classesPerPage]);
 
   useEffect(() => {
     if (personnelData?.success) {
@@ -202,7 +178,12 @@ export default function ClassesPage() {
         }
         
         // Rafraîchir les données avec React Query
-        refetchClasses();
+        if (currentPage !== 1) {
+          setCurrentPage(1); 
+        } else {
+          refetchClasses();
+        }
+        
         toast.success('Classe ajoutée avec succès');
       }
       
@@ -242,11 +223,6 @@ export default function ClassesPage() {
     } catch (error) {
       toast.error(error.message);
     }
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-    setCurrentPage(1); // Revenir à la première page lors d'une recherche
   };
 
   if (loading) {
@@ -313,17 +289,18 @@ export default function ClassesPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nom">Nom de la classe</Label>
+                  <Label htmlFor="nom">Nom de la classe <span className='text-red-500'>*</span></Label>
                   <Input
                     id="nom"
                     name="nom"
                     value={formData.nom}
+                    placeholder="ex: 1ère primaire A"
                     onChange={handleFormChange}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="niveau">Niveau</Label>
+                  <Label htmlFor="niveau">Niveau<span className='text-red-500'>*</span></Label>
                   <Select
                     value={formData.niveau}
                     onValueChange={(value) => handleSelectChange('niveau', value)}
@@ -361,11 +338,13 @@ export default function ClassesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="frais_scolaire">Frais scolaire</Label>
+                  <Label htmlFor="frais_scolaire">Frais scolaire <span className='text-red-500'>*</span></Label>
                   <Input
                     id="frais_scolaire"
                     name="frais_scolaire"
+                    type="number"
                     value={formData.frais_scolaire}
+                    placeholder="frais scolaire"
                     onChange={handleFormChange}
                     required
                   />
@@ -392,43 +371,30 @@ export default function ClassesPage() {
       <Card>
         <CardHeader className="pb-0">
           <CardTitle>Liste des classes</CardTitle>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-3">
+          {/* <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-3">
             <div className="flex flex-col sm:flex-row gap-2 w-full">
-              {/* Champ de recherche par nom */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher une classe..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="pl-8"
-                />
-              </div>
-              
-              {/* Filtre par niveau */}
+          
               <div className="w-full sm:w-48">
                 <Select 
                   value={niveauFilter} 
-                  onValueChange={(value) => {
-                    setNiveauFilter(value);
-                    setCurrentPage(1); // Revenir à la première page lors d'un changement de filtre
-                  }}
+                  onValueChange={setNiveauFilter}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Filtrer par niveau" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Tous les niveaux">Tous les niveaux</SelectItem>
-                    {niveaux.map((niveau) => (
-                      <SelectItem key={niveau} value={niveau}>
-                        {niveau}
+                    {classes.map((classe) => (
+                      <SelectItem key={classe.id} value={classe.nom}>
+                        {classe.nom}
                       </SelectItem>
                     ))}
+                 
                   </SelectContent>
                 </Select>
               </div>
             </div>
-          </div>
+          </div> */}
         </CardHeader>
         <CardContent>
           <div className="relative mt-4">
@@ -439,7 +405,7 @@ export default function ClassesPage() {
             )}
             
             <div className="overflow-x-auto">
-              {paginatedClasses.length > 0 ? (
+              {classes.length > 0 ? (
                 <Table className="w-full">
                   <TableHeader>
                     <TableRow>
@@ -452,7 +418,7 @@ export default function ClassesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedClasses.map((classe, index) => {
+                    {classes.map((classe, index) => {
                       const titulaire = personnel.find(p => p.id === classe.titulaire_id);
 
                       return (
@@ -520,7 +486,7 @@ export default function ClassesPage() {
                 <div className="flex flex-col items-center py-8">
                   <School className="h-12 w-12 text-gray-400 mb-4" />
                   <p className="text-gray-500">
-                    {(searchQuery || niveauFilter) ? "Aucune classe ne correspond à votre recherche." : "Aucune classe disponible."}
+                    {niveauFilter && "Aucune classe ne correspond à votre recherche." }
                   </p>
                 </div>
               )}

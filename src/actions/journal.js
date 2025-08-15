@@ -264,7 +264,7 @@ export async function permanentlyDeleteHistoryEntry(id, userRole) {
   
   try {
     // Vérifier que l'utilisateur est bien un directeur
-    if (userRole !== 'directeur') {
+    if (userRole !== 'directeur' || userRole !== 'admin') {
       throw new Error('Vous n\'avez pas les permissions nécessaires pour effectuer cette action');
     }
     
