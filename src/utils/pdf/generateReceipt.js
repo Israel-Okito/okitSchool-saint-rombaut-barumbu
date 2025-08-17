@@ -71,7 +71,7 @@ function convertirMontantEnLettres(montant) {
 export function generateReceipt(data) {
   // Créer un nouveau document PDF
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation:'landscape',
     unit: 'mm',
     format: 'a4' // Format A4 pour un reçu
   });
@@ -103,8 +103,9 @@ export function generateReceipt(data) {
   doc.text('Complexe Scolaire Saint Rombaut', 105, 38, { align: 'center' });
   doc.setFontSize(14);
   doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.text('C/Barumbu, Q/Kasai, Av/Maluku', 105, 48, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
   doc.text('Tél : 081 508 6525 ', 105, 56, { align: 'center' });
 
   // Ligne de séparation
@@ -118,7 +119,7 @@ export function generateReceipt(data) {
   
   // Date et heure du reçu
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'bold');
   doc.text(format(new Date(), 'dd-MM-yyyy', { locale: fr }), 170, 70);
   doc.text(format(new Date(), 'HH:mm:ss', { locale: fr }), 170, 75);
   
@@ -167,7 +168,7 @@ doc.text(doc.splitTextToSize(convertirMontantEnLettres(paiement.montant), 100), 
           libelle = `- ${detail.libelle || detail.type || 'PAIEMENT'} (Versé)`;
         }
         
-        doc.setFont('helvetica', 'normal');
+        doc.setFont('helvetica', 'bold');
         doc.text(libelle, 90, yPosition);
         doc.text('USD', 160, yPosition);
         doc.text(`${formatMontantForDisplay(detail.montant)}`, 192, yPosition, { align: 'right' });
@@ -224,7 +225,7 @@ doc.text(doc.splitTextToSize(convertirMontantEnLettres(paiement.montant), 100), 
     // Afficher les détails du paiement
     fraisDetails.forEach(detail => {
       if (detail.montant > 0) {
-        doc.setFont('helvetica', 'normal');
+        doc.setFont('helvetica', 'bold');
         doc.text(detail.libelle, 90, yPosition);
         doc.text('USD', 160, yPosition);
         doc.text(`${formatMontantForDisplay(detail.montant)}`, 192, yPosition, { align: 'right' });
@@ -289,20 +290,20 @@ doc.text(doc.splitTextToSize(convertirMontantEnLettres(paiement.montant), 100), 
   
   // Signatures
   yPosition += 20;
-  doc.setFont('helvetica', 'normal');
-  doc.text("Signature du responsable", 40, yPosition);
-  doc.text("Signature caissier(ère)", 150, yPosition);
+  doc.setFont('helvetica', 'bold');
+  // doc.text("Signature du responsable", 40, yPosition);
+  doc.text("Signature caissier(ère)", 140, yPosition);
   
   // Note de bas de page
   yPosition += 20;
-  doc.setFont('helvetica', 'italic');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.text("N.B. : Les frais versés ne sont ni remboursables ni transférables.", 105, yPosition, { align: 'center' });
   
-  // Informations administratives
-  yPosition += 10;
-  doc.setFontSize(8);
-  doc.text("ADMIN : saint rombaut", 30, yPosition);
+  // // Informations administratives
+  // yPosition += 10;
+  // doc.setFontSize(8);
+  // doc.text("ADMIN : saint rombaut", 30, yPosition);
   
   // Ajout d'un cadre autour du reçu
   doc.setDrawColor(50, 50, 50);
