@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { createEleve, updateEleve, deleteEleve } from '@/actions/eleves';
 import { useElevesQuery } from '@/hooks/useElevesQuery';
 import { useClassesQuery } from '@/hooks/useClassesQuery';
+import { createClient } from '@/utils/supabase/client';
 
 
 export default function ElevesPage() {
@@ -33,11 +34,38 @@ export default function ElevesPage() {
   const [filteredEleves, setFilteredEleves] = useState([]);
   const [showDeleted, setShowDeleted] = useState(false);
   const [submitloading, setSubmitloading]  = useState(false)
+
+  const [isClassesLoading, setIsClassesLoading] = useState(false)
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEleves, setTotalEleves] = useState(0);
   const [errors, setErrors] = useState({});
+
+  const supabase  =createClient()
+  
+
+ 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsClassesLoading(true);
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*');
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des paiements:', error);
+      // toast.error('Erreur lors de la récupération des paiements');
+    } 
+    finally {
+      setIsClassesLoading(false);
+    }
+  };
 
   const elevesPerPage = 10;
   
@@ -73,11 +101,11 @@ export default function ElevesPage() {
     classeId: selectedClasse
   });
 
-  // Utiliser React Query pour récupérer les classes
-  const { 
-    data: classesData,
-    isLoading: isClassesLoading
-  } = useClassesQuery();
+  // // Utiliser React Query pour récupérer les classes
+  // const { 
+  //   data: classesData,
+  //   isLoading: isClassesLoading
+  // } = useClassesQuery();
 
   // Debounce du terme de recherche
   useEffect(() => {
@@ -99,11 +127,11 @@ export default function ElevesPage() {
     }
   }, [elevesData]);
 
-  useEffect(() => {
-    if (classesData?.success) {
-      setClasses(classesData.data || []);
-    }
-  }, [classesData]);
+  // useEffect(() => {
+  //   if (classesData?.success) {
+  //     setClasses(classesData.data || []);
+  //   }
+  // }, [classesData]);
 
   // Mettre à jour l'état du chargement
   useEffect(() => {
@@ -249,10 +277,10 @@ export default function ElevesPage() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet élève ?')) {
       return;
     }
-
+  
     try {
       const response = await deleteEleve(id);
-
+  
       if (response.success) {
         toast.success("L'élève a été supprimé avec succès");
         refetchEleves();
@@ -260,9 +288,11 @@ export default function ElevesPage() {
         throw new Error(response.error);
       }
     } catch (error) {
-      toast.error(error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message);
     }
   };
+  
 
   const totalPages = Math.ceil(totalEleves / elevesPerPage);
   
