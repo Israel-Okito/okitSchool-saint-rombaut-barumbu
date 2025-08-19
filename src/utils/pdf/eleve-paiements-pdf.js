@@ -189,7 +189,6 @@ export const generateElevePaiementsReport = (reportData, schoolInfo = {}) => {
       rows.push([
         format(new Date(paiement.date), 'dd/MM/yyyy', { locale: fr }),
         cleanDescription,
-        paiement.reference_bancaire || 'N/A',
         formatMontantForDisplay(paiement.montant)
       ]);
     

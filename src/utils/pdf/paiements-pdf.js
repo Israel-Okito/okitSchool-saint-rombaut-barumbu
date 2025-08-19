@@ -70,7 +70,6 @@ export const generatePaiementsReport = (reportData, schoolInfo = {}) => {
       paiement.eleve?.classes?.nom || 'N/A',
       // paiement.type,
       (paiement.description || ''),
-      (paiement.reference_bancaire || '-'),
       formatMontantForDisplay(paiement.montant)
     ]);
     

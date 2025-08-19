@@ -286,7 +286,6 @@ export default function PaiementsPage() {
                 eleve.prenom?.toLowerCase().includes(searchLower)
               )) ||
               paiement.type?.toLowerCase().includes(searchLower) ||
-              paiement.reference_bancaire?.toLowerCase().includes(searchLower) ||
               paiement.description?.toLowerCase().includes(searchLower)
             );
           }
@@ -924,7 +923,7 @@ export default function PaiementsPage() {
                       const eleve = elevesData?.data?.find(e => e && e.id === paiement?.eleve_id);
                     return (
                       <TableRow key={`${paiement.id}-${index}`}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
-                        <TableCell>{eleve ? `${eleve.prenom} ${eleve.nom}` : 'Élève non trouvé'}</TableCell>
+                        <TableCell>{eleve ? `${eleve.nom} ${eleve.prenom} ${eleve.postnom}` : 'Élève non trouvé'}</TableCell>
                         <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
                         <TableCell>{paiement.montant} $</TableCell>
                       <TableCell>
@@ -1028,7 +1027,7 @@ export default function PaiementsPage() {
               {receiptData && (
                 <div className="flex flex-col space-y-4 w-full">
                   <div className="p-4 border rounded-lg bg-muted/50">
-                    <p className="text-sm font-medium">Élève: {receiptData.eleve?.prenom} {receiptData.eleve?.nom}</p>
+                    <p className="text-sm font-medium">Élève: {receiptData.eleve?.nom} {receiptData.eleve?.prenom} </p>
                     <p className="text-sm">Montant: {receiptData.paiement?.montant} $</p>
                     <p className="text-sm">Date: {new Date(receiptData.paiement?.date).toLocaleDateString()}</p>
                     <p className="text-sm">Type: {receiptData.paiement?.type}</p>

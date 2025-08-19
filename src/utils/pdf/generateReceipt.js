@@ -62,7 +62,6 @@ function convertirMontantEnLettres(montant) {
  * @param {number} data.paiement.montant - Montant du paiement
  * @param {string} data.paiement.type - Type de paiement (Scolarité, etc.)
  * @param {string} data.paiement.description - Description du paiement
- * @param {string} data.paiement.reference_bancaire - Référence bancaire (optionnel)
  * @param {Array} data.paiement.detailsPaiement - Détails du paiement répartis (optionnel)
  * @param {Object} data.anneeScolaire - Informations sur l'année scolaire
  * @param {string} data.anneeScolaire.libelle - Nom de l'année scolaire
@@ -79,7 +78,7 @@ export function generateReceipt(data) {
   // Extraction des données
   const { eleve, paiement, anneeScolaire } = data;
   const dateFormatee = format(new Date(paiement.date), 'dd-MM-yyyy', { locale: fr });
-  const eleveName = `${eleve.prenom || ''} ${eleve.nom || ''} ${eleve.postnom || ''}`.trim();
+  const eleveName = ` ${eleve.nom || ''} ${eleve.postnom || ''} ${eleve.prenom || ''}`.trim();
   
   // Récupérer les informations de classe, en supportant différentes structures de données
   const classe = eleve.classes?.nom || 'N/A';
@@ -234,15 +233,7 @@ doc.text(doc.splitTextToSize(convertirMontantEnLettres(paiement.montant), 100), 
     });
   }
   
-  // // Référence bancaire
-  // if (paiement.reference_bancaire) {
-  //   yPosition += 10;
-  //   doc.setFont('helvetica', 'normal');
-  //   doc.text("N° BORDEREAU : ", 48, yPosition);
-  //   doc.setFont('helvetica', 'bold');
-  //   doc.text(paiement.reference_bancaire, 90, yPosition);
 
-  // }
   
   // // Banque
 

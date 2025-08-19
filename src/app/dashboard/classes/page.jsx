@@ -331,7 +331,7 @@ export default function ClassesPage() {
                         .filter(p => p.poste === 'enseignant') 
                         .map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.prenom} {p.nom} {p.postnom} - {p.poste}
+                            {p.nom} {p.postnom}  {p.prenom} - {p.poste}
                           </SelectItem>
                         ))}
                     </SelectContent>

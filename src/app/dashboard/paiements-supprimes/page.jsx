@@ -118,7 +118,6 @@ export default function PaiementsSupprimesPage() {
       paiement.nom?.toLowerCase().includes(searchLower) ||
       paiement.prenom?.toLowerCase().includes(searchLower) ||
       paiement.type?.toLowerCase().includes(searchLower) ||
-      paiement.reference_bancaire?.toLowerCase().includes(searchLower) ||
       paiement.description?.toLowerCase().includes(searchLower);
 
     const matchesType = selectedType === 'all' || paiement.type === selectedType;
@@ -255,9 +254,7 @@ export default function PaiementsSupprimesPage() {
                           <Badge variant="outline">{paiement.type}</Badge>
                         </TableCell>
                         <TableCell>{paiement.montant} $</TableCell>
-                        <TableCell>
-                          {paiement.reference_bancaire || '-'}
-                        </TableCell>
+                       
                         <TableCell>
                           {paiement.user_nom ? (
                             <div className="flex items-center">
