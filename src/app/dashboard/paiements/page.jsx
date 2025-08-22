@@ -89,7 +89,7 @@ export default function PaiementsPage() {
       }
       
       // Sinon charger depuis l'API
-      const response = await fetch('/api/bypass-rls/eleves?limit=500', {
+      const response = await fetch('/api/bypass-rls/eleves?limit=5000', {
         cache: 'force-cache',
         headers: {
           'Cache-Control': 'max-age=3600' // Cache pour 1 heure
@@ -923,7 +923,7 @@ export default function PaiementsPage() {
                       const eleve = elevesData?.data?.find(e => e && e.id === paiement?.eleve_id);
                     return (
                       <TableRow key={`${paiement.id}-${index}`}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
-                        <TableCell>{eleve ? `${eleve.nom} ${eleve.prenom} ${eleve.postnom}` : 'Élève non trouvé'}</TableCell>
+                        <TableCell>{eleve ? `${eleve.nom } ${eleve.postnom} ${eleve.prenom} ${eleve.postnom}` : 'Élève non trouvé'}</TableCell>
                         <TableCell>{new Date(paiement.date).toLocaleDateString()}</TableCell>
                         <TableCell>{paiement.montant} $</TableCell>
                       <TableCell>
