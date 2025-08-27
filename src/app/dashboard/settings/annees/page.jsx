@@ -443,13 +443,13 @@ Cette action est IRRÉVERSIBLE. Êtes-vous absolument sûr de vouloir continuer 
                         >
                           Modifier
                         </Button>
-                           <Button
+                           {/* <Button
                           variant="destructive"
                           size="sm"
                           onClick={() => handleDelete(annee.id, annee.libelle)}
                         >
                           Supprimer
-                        </Button>
+                        </Button> */}
                    </div>
                    )
                   }

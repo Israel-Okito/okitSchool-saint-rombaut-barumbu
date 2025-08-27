@@ -52,7 +52,7 @@ export async function GET(request) {
     
     let query = adminClient
       .from('journal_de_caisse')
-      .select('id, date, description, montant, type, categorie, user_id, user_nom', { count: 'exact' })
+      .select('id, date, description, montant, type, categorie, type_entree, type_sortie, user_id, user_nom', { count: 'exact' })
       .eq('annee_scolaire_id', annee_scolaire_id)
       .order('date', { ascending: false });
     

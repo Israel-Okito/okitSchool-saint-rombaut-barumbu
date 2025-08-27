@@ -65,6 +65,8 @@ export async function createJournalEntry(formData) {
       montant: montantValue,
       description: formData.description || '',
       categorie: formData.categorie || '',
+      type_entree: formData.type_entree || 'frais_scolaires', // Par défaut : frais scolaires
+      type_sortie: formData.type_sortie || 'operationnelle', // Par défaut : dépense opérationnelle
       annee_scolaire_id: anneeActive.id
     };
 
@@ -128,7 +130,9 @@ export async function updateJournalEntry(formData) {
       type: formData.type,
       montant: montantValue,
       description: formData.description || '',
-      categorie: formData.categorie || ''
+      categorie: formData.categorie || '',
+      type_entree: formData.type_entree || 'frais_scolaires',
+      type_sortie: formData.type_sortie || 'operationnelle'
     };
 
     // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni

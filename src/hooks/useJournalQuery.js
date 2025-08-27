@@ -46,7 +46,7 @@ const enrichJournalData = async (journalData) => {
 };
 
 // Fonction qui interroge l'API pour récupérer les entrées du journal
-const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
+const fetchJournal = async ({ page = 1, limit = 10000, search = '' }) => {
   const params = new URLSearchParams();
   params.append('page', page);
   params.append('limit', limit);
@@ -86,7 +86,7 @@ const fetchJournal = async ({ page = 1, limit = 10, search = '' }) => {
  * @param {boolean} options.enabled - Si la requête doit être exécutée
  * @returns {Object} Résultat de la requête React Query
  */
-export function useJournalQuery({ page = 1, limit = 10, search = '', enabled = true }) {
+export function useJournalQuery({ page = 1, limit = 10000, search = '', enabled = true }) {
   return useQuery({
     queryKey: ['journal', page, limit, search],
     queryFn: () => fetchJournal({ page, limit, search }),

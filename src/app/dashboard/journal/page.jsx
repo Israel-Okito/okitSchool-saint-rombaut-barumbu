@@ -93,6 +93,7 @@ export default function JournalPage() {
     montant: '',
     description: '',
     categorie: '',
+    type_entree: 'frais_scolaires', // Par défaut : frais scolaires
     user_id: ''
   });
   
@@ -190,6 +191,7 @@ export default function JournalPage() {
       montant: '',
       description: '',
       categorie: '',
+      type_entree: 'frais_scolaires',
       user_id: userInfo?.id || ''
     });
     setIsEditing(false);
@@ -207,6 +209,7 @@ export default function JournalPage() {
         montant: entry.montant.toString(),
         description: entry.description || '',
         categorie: entry.categorie || '',
+        type_entree: entry.type_entree || 'frais_scolaires',
         user_id: userInfo?.id || entry.user_id
       });
     } else {
@@ -512,6 +515,7 @@ export default function JournalPage() {
                     <TableRow className="bg-gray-50">
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type</TableHead>
+                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type d'entrée</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider ">Libellé</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Rubrique</TableHead>
@@ -524,6 +528,7 @@ export default function JournalPage() {
                       Array(entriesPerPage).fill(0).map((_, index) => (
                         <TableRow key={`skeleton-${index}`}>
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-24" /></TableCell>
+                          <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
                           <TableCell className="py-3 px-4"><Skeleton className="h-5 w-20" /></TableCell>
                           <TableCell className="py-3 px-4 "><Skeleton className="h-5 w-full" /></TableCell>
@@ -549,6 +554,19 @@ export default function JournalPage() {
                         }`}>
                           {entry.type === 'entree' ? 'Entrée' : 'Sortie'}
                             </div>
+                          </TableCell>
+                          <TableCell className="py-3 px-4 whitespace-nowrap text-sm text-gray-500">
+                            {entry.type === 'entree' ? (
+                              <div className={`inline-flex items-center px-2 py-1 rounded text-xs ${
+                                entry.type_entree === 'frais_scolaires' ? 'bg-blue-100 text-blue-800' :
+                                entry.type_entree === 'don' ? 'bg-purple-100 text-purple-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {entry.type_entree === 'frais_scolaires' ? 'Frais scolaires' :
+                                 entry.type_entree === 'don' ? 'Don' :
+                                 entry.type_entree === 'autre' ? 'Autre' : 'Frais scolaires'}
+                              </div>
+                            ) : '-'}
                           </TableCell>
                           <TableCell className="py-3 px-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {parseFloat(entry.montant).toFixed(2)} $
@@ -667,6 +685,38 @@ export default function JournalPage() {
                   ))}
                     </div>
               </div>
+
+              {formData.type === 'entree' && (
+                <div className="space-y-2">
+                  <Label htmlFor="type_entree">Type d'entrée</Label>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant={formData.type_entree === 'frais_scolaires' ? "default" : "outline"}
+                      onClick={() => handleSelectChange('type_entree', 'frais_scolaires')}
+                      className="flex-1"
+                    >
+                      Frais scolaires
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.type_entree === 'don' ? "default" : "outline"}
+                      onClick={() => handleSelectChange('type_entree', 'don')}
+                      className="flex-1"
+                    >
+                      Don
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.type_entree === 'autre' ? "default" : "outline"}
+                      onClick={() => handleSelectChange('type_entree', 'autre')}
+                      className="flex-1"
+                    >
+                      Autre
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {formData.type === 'sortie' && (
                 <div className="space-y-2">

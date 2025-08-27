@@ -38,6 +38,11 @@ function RepartitionPageContent() {
   const [totalEntrees, setTotalEntrees] = useState(0);
   const [totalSorties, setTotalSorties] = useState(0);
   const [categoryTotals, setCategoryTotals] = useState({});
+  const [autresEntrees, setAutresEntrees] = useState({
+    dons: 0,
+    autres: 0,
+    total: 0
+  });
   const [periode, setPeriode] = useState({ start: '', end: '' });
   
   // États pour la pagination des transactions
@@ -92,11 +97,21 @@ function RepartitionPageContent() {
           'Santé': 0
         };
 
+        let dons = 0;
+        let autres = 0;
+
         data.all_data.forEach(transaction => {
           const montant = parseFloat(transaction.montant) || 0;
             
           if (transaction.type === 'entree') {
-            entrees += montant;
+            // Ne compter que les frais scolaires pour la répartition
+            if (transaction.type_entree === 'frais_scolaires' || !transaction.type_entree) {
+              entrees += montant;
+            } else if (transaction.type_entree === 'don') {
+              dons += montant;
+            } else if (transaction.type_entree === 'autre') {
+              autres += montant;
+            }
           } else if (transaction.type === 'sortie') {
             sorties += montant;
 
@@ -111,6 +126,11 @@ function RepartitionPageContent() {
         setTotalEntrees(entrees);
         setTotalSorties(sorties);
         setCategoryTotals(totalsPerCategory);
+        setAutresEntrees({
+          dons,
+          autres,
+          total: dons + autres
+        });
       }
 
       // Définir les transactions paginées pour l'affichage
@@ -250,12 +270,31 @@ function RepartitionPageContent() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex max-sm:flex-col justify-between items-center max-sm:space-y-3 mb-6">
-                <h3 className="text-sm  font-semibold">Total des Recettes: {totalEntrees.toLocaleString('fr-FR')} $</h3>
-                <h3 className="text-sm  font-semibold">Total des Dépenses: {totalSorties.toLocaleString('fr-FR')} $</h3>
-                <h3 className={`text-sm  font-semibold ${totalEntrees - totalSorties >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  Solde: {(totalEntrees - totalSorties).toLocaleString('fr-FR')} $
-                </h3>
+              <div className="mb-6">
+                <div className="flex max-sm:flex-col justify-between items-center max-sm:space-y-3 mb-4">
+                  <h3 className="text-sm font-semibold">Frais Scolaires (Répartition): {totalEntrees.toLocaleString('fr-FR')} $</h3>
+                  <h3 className="text-sm font-semibold">Total des Dépenses: {totalSorties.toLocaleString('fr-FR')} $</h3>
+                  <h3 className={`text-sm font-semibold ${totalEntrees - totalSorties >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    Solde: {(totalEntrees - totalSorties).toLocaleString('fr-FR')} $
+                  </h3>
+                </div>
+                
+                {autresEntrees.total > 0 && (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">Autres Entrées (Non incluses dans la répartition)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="text-center">
+                        <p className="text-purple-600 font-medium">Dons: {autresEntrees.dons.toLocaleString('fr-FR')} $</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-600 font-medium">Autres: {autresEntrees.autres.toLocaleString('fr-FR')} $</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-blue-600 font-bold">Total Autres: {autresEntrees.total.toLocaleString('fr-FR')} $</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="overflow-x-auto">
