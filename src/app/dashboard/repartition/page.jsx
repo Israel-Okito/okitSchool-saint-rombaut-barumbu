@@ -43,6 +43,11 @@ function RepartitionPageContent() {
     autres: 0,
     total: 0
   });
+  const [autresSorties, setAutresSorties] = useState({
+    dons_donnes: 0,
+    autres: 0,
+    total: 0
+  });
   const [periode, setPeriode] = useState({ start: '', end: '' });
   
   // États pour la pagination des transactions
@@ -98,7 +103,9 @@ function RepartitionPageContent() {
         };
 
         let dons = 0;
-        let autres = 0;
+        let autresEntreesTotal = 0;
+        let donsDonnes = 0;
+        let autresSortiesTotal = 0;
 
         data.all_data.forEach(transaction => {
           const montant = parseFloat(transaction.montant) || 0;
@@ -110,15 +117,21 @@ function RepartitionPageContent() {
             } else if (transaction.type_entree === 'don') {
               dons += montant;
             } else if (transaction.type_entree === 'autre') {
-              autres += montant;
+              autresEntreesTotal += montant;
             }
           } else if (transaction.type === 'sortie') {
-            sorties += montant;
-
-            const categorie = transaction.categorie;
-            
-            if (categorie in totalsPerCategory) {
-              totalsPerCategory[categorie] += montant;
+            // Séparer les dépenses opérationnelles des autres sorties
+            if (transaction.type_sortie === 'operationnelle' || !transaction.type_sortie) {
+              sorties += montant;
+              
+              const categorie = transaction.categorie;
+              if (categorie in totalsPerCategory) {
+                totalsPerCategory[categorie] += montant;
+              }
+            } else if (transaction.type_sortie === 'don_donne') {
+              donsDonnes += montant;
+            } else if (transaction.type_sortie === 'autre') {
+              autresSortiesTotal += montant;
             }
           }
         });
@@ -128,8 +141,13 @@ function RepartitionPageContent() {
         setCategoryTotals(totalsPerCategory);
         setAutresEntrees({
           dons,
-          autres,
-          total: dons + autres
+          autres: autresEntreesTotal,
+          total: dons + autresEntreesTotal
+        });
+        setAutresSorties({
+          dons_donnes: donsDonnes,
+          autres: autresSortiesTotal,
+          total: donsDonnes + autresSortiesTotal
         });
       }
 
@@ -279,20 +297,47 @@ function RepartitionPageContent() {
                   </h3>
                 </div>
                 
-                {autresEntrees.total > 0 && (
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="text-sm font-semibold text-blue-800 mb-2">Autres Entrées (Non incluses dans la répartition)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-purple-600 font-medium">Dons: {autresEntrees.dons.toLocaleString('fr-FR')} $</p>
+                {(autresEntrees.total > 0 || autresSorties.total > 0) && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {autresEntrees.total > 0 && (
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <h4 className="text-sm font-semibold text-blue-800 mb-2">Autres Entrées (Non incluses dans la répartition)</h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-purple-600">Dons reçus:</span>
+                            <span className="font-medium">{autresEntrees.dons.toLocaleString('fr-FR')} $</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Autres:</span>
+                            <span className="font-medium">{autresEntrees.autres.toLocaleString('fr-FR')} $</span>
+                          </div>
+                          <div className="flex justify-between border-t pt-2">
+                            <span className="text-blue-600 font-bold">Total:</span>
+                            <span className="font-bold">{autresEntrees.total.toLocaleString('fr-FR')} $</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-gray-600 font-medium">Autres: {autresEntrees.autres.toLocaleString('fr-FR')} $</p>
+                    )}
+                    
+                    {autresSorties.total > 0 && (
+                      <div className="bg-red-50 p-4 rounded-lg">
+                        <h4 className="text-sm font-semibold text-red-800 mb-2">Autres Sorties (Non incluses dans la répartition)</h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-red-600">Dons donnés:</span>
+                            <span className="font-medium">{autresSorties.dons_donnes.toLocaleString('fr-FR')} $</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Autres:</span>
+                            <span className="font-medium">{autresSorties.autres.toLocaleString('fr-FR')} $</span>
+                          </div>
+                          <div className="flex justify-between border-t pt-2">
+                            <span className="text-red-600 font-bold">Total:</span>
+                            <span className="font-bold">{autresSorties.total.toLocaleString('fr-FR')} $</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-blue-600 font-bold">Total Autres: {autresEntrees.total.toLocaleString('fr-FR')} $</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>

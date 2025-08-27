@@ -50,9 +50,27 @@ export async function GET(request) {
     
     const annee_scolaire_id = await getAnneeActive(adminClient);
     
+    // Essayer de sélectionner avec les nouveaux champs, fallback sur les anciens
+    let selectFields = 'id, date, description, montant, type, categorie, user_id, user_nom';
+    
+    // Test pour vérifier si les nouveaux champs existent
+    try {
+      const testQuery = await adminClient
+        .from('journal_de_caisse')
+        .select('type_entree, type_sortie')
+        .limit(1);
+      
+      if (!testQuery.error) {
+        selectFields = 'id, date, description, montant, type, categorie, type_entree, type_sortie, user_id, user_nom';
+      }
+    } catch (testError) {
+      // Les colonnes n'existent pas encore, utiliser l'ancien format
+      console.log('Les colonnes type_entree et type_sortie n\'existent pas encore');
+    }
+    
     let query = adminClient
       .from('journal_de_caisse')
-      .select('id, date, description, montant, type, categorie, type_entree, type_sortie, user_id, user_nom', { count: 'exact' })
+      .select(selectFields, { count: 'exact' })
       .eq('annee_scolaire_id', annee_scolaire_id)
       .order('date', { ascending: false });
     
@@ -67,10 +85,17 @@ export async function GET(request) {
     if (error) {
       throw error;
     }
+    
+    // Ajouter les champs manquants avec des valeurs par défaut si nécessaire
+    const enrichedData = data.map(item => ({
+      ...item,
+      type_entree: item.type_entree || (item.type === 'entree' ? 'frais_scolaires' : undefined),
+      type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined)
+    }));
 
     const response = { 
       success: true, 
-      data,
+      data: enrichedData,
       total: count,
       page,
       limit,
@@ -84,6 +109,7 @@ export async function GET(request) {
       }
     });
   } catch (error) {
+    console.error('Erreur dans GET /api/bypass-rls/journal:', error);
     return NextResponse.json(
       { success: false, message: error.message },
       { status: 500 }

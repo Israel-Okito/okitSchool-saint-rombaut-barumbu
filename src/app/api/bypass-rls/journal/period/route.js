@@ -91,6 +91,13 @@ export async function GET(request) {
       throw allDataError;
     }
 
+    // Enrichir les données avec les valeurs par défaut si les champs n'existent pas
+    const enrichedAllData = allData.map(item => ({
+      ...item,
+      type_entree: item.type_entree || (item.type === 'entree' ? 'frais_scolaires' : undefined),
+      type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined)
+    }));
+
     // Requête paginée pour les transactions à afficher
     const { data, error, count } = await adminClient
       .from('journal_de_caisse')
@@ -105,13 +112,20 @@ export async function GET(request) {
       throw error;
     }
     
+    // Enrichir aussi les données paginées
+    const enrichedData = data.map(item => ({
+      ...item,
+      type_entree: item.type_entree || (item.type === 'entree' ? 'frais_scolaires' : undefined),
+      type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined)
+    }));
+    
     // Calculer le nombre total de pages
     const totalPages = Math.ceil(count / limit);
 
     return NextResponse.json({
       success: true,
-      data,
-      all_data: allData,
+      data: enrichedData,
+      all_data: enrichedAllData,
       total: count,
       currentPage: page,
       totalPages,

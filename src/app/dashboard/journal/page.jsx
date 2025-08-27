@@ -94,6 +94,7 @@ export default function JournalPage() {
     description: '',
     categorie: '',
     type_entree: 'frais_scolaires', // Par défaut : frais scolaires
+    type_sortie: 'operationnelle', // Par défaut : dépense opérationnelle
     user_id: ''
   });
   
@@ -192,6 +193,7 @@ export default function JournalPage() {
       description: '',
       categorie: '',
       type_entree: 'frais_scolaires',
+      type_sortie: 'operationnelle',
       user_id: userInfo?.id || ''
     });
     setIsEditing(false);
@@ -210,6 +212,7 @@ export default function JournalPage() {
         description: entry.description || '',
         categorie: entry.categorie || '',
         type_entree: entry.type_entree || 'frais_scolaires',
+        type_sortie: entry.type_sortie || 'operationnelle',
         user_id: userInfo?.id || entry.user_id
       });
     } else {
@@ -515,7 +518,7 @@ export default function JournalPage() {
                     <TableRow className="bg-gray-50">
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type</TableHead>
-                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type d'entrée</TableHead>
+                      <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Type spécifique</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider ">Libellé</TableHead>
                       <TableHead className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Rubrique</TableHead>
@@ -563,10 +566,20 @@ export default function JournalPage() {
                                 'bg-gray-100 text-gray-800'
                               }`}>
                                 {entry.type_entree === 'frais_scolaires' ? 'Frais scolaires' :
-                                 entry.type_entree === 'don' ? 'Don' :
+                                 entry.type_entree === 'don' ? 'Don reçu' :
                                  entry.type_entree === 'autre' ? 'Autre' : 'Frais scolaires'}
                               </div>
-                            ) : '-'}
+                            ) : (
+                              <div className={`inline-flex items-center px-2 py-1 rounded text-xs ${
+                                entry.type_sortie === 'operationnelle' ? 'bg-orange-100 text-orange-800' :
+                                entry.type_sortie === 'don_donne' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {entry.type_sortie === 'operationnelle' ? 'Dépense opérationnelle' :
+                                 entry.type_sortie === 'don_donne' ? 'Don donné' :
+                                 entry.type_sortie === 'autre' ? 'Autre' : 'Dépense opérationnelle'}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="py-3 px-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {parseFloat(entry.montant).toFixed(2)} $
@@ -736,6 +749,36 @@ export default function JournalPage() {
                       </option>
                     ))}
                   </select>
+                  
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="type_sortie">Type de sortie</Label>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        type="button"
+                        variant={formData.type_sortie === 'operationnelle' ? "default" : "outline"}
+                        onClick={() => handleSelectChange('type_sortie', 'operationnelle')}
+                        className="flex-1"
+                      >
+                        Dépense opérationnelle
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={formData.type_sortie === 'don_donne' ? "default" : "outline"}
+                        onClick={() => handleSelectChange('type_sortie', 'don_donne')}
+                        className="flex-1"
+                      >
+                        Don donné
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={formData.type_sortie === 'autre' ? "default" : "outline"}
+                        onClick={() => handleSelectChange('type_sortie', 'autre')}
+                        className="flex-1"
+                      >
+                        Autre
+                      </Button>
+                    </div>
+                  </div>
                       </div>
                     )}
               
