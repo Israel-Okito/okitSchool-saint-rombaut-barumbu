@@ -7,6 +7,74 @@ let cachedAnneeActive = null;
 let cacheExpiry = null;
 const CACHE_DURATION = 60 * 1000; // 1 minute en millisecondes
 
+// Fonction pour calculer les soldes par type
+async function getBalancesByType(annee_scolaire_id) {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('journal_de_caisse')
+    .select('*')
+    .eq('annee_scolaire_id', annee_scolaire_id);
+    
+  if (error) throw error;
+  
+  // Enrichir les données avec les valeurs par défaut si les champs n'existent pas
+  const enrichedData = data.map(item => ({
+    ...item,
+    type_entree: item.type_entree || (item.type === 'entree' ? 'frais_scolaires' : undefined),
+    type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined)
+  }));
+  
+  const balances = {
+    frais_scolaires: 0,
+    don: 0,
+    autre_entree: 0
+  };
+  
+  enrichedData.forEach(transaction => {
+    const montant = parseFloat(transaction.montant) || 0;
+    
+    if (transaction.type === 'entree') {
+      const typeEntree = transaction.type_entree || 'frais_scolaires';
+      if (typeEntree === 'frais_scolaires') {
+        balances.frais_scolaires += montant;
+      } else if (typeEntree === 'don') {
+        balances.don += montant;
+      } else if (typeEntree === 'autre') {
+        balances.autre_entree += montant;
+      }
+    } else if (transaction.type === 'sortie') {
+      const typeSortie = transaction.type_sortie || 'operationnelle';
+      const sourceType = transaction.source_type || 'frais_scolaires'; // Nouveau champ pour indiquer la source
+      
+      if (typeSortie === 'operationnelle') {
+        // Les dépenses opérationnelles sortent toujours des frais scolaires
+        balances.frais_scolaires -= montant;
+      } else if (typeSortie === 'don_donne') {
+        // Les dons donnés peuvent sortir du type spécifié
+        if (sourceType === 'don') {
+          balances.don -= montant;
+        } else if (sourceType === 'autre_entree') {
+          balances.autre_entree -= montant;
+        } else {
+          balances.frais_scolaires -= montant;
+        }
+      } else if (typeSortie === 'autre') {
+        // Les autres sorties peuvent sortir du type spécifié
+        if (sourceType === 'don') {
+          balances.don -= montant;
+        } else if (sourceType === 'autre_entree') {
+          balances.autre_entree -= montant;
+        } else {
+          balances.frais_scolaires -= montant;
+        }
+      }
+    }
+  });
+  
+  return balances;
+}
+
 async function getAnneeActive() {
   if (cachedAnneeActive && cacheExpiry && Date.now() < cacheExpiry) {
     return cachedAnneeActive;
@@ -57,6 +125,38 @@ export async function createJournalEntry(formData) {
     if (isNaN(montantValue)) {
       throw new Error('Le montant doit être un nombre valide');
     }
+    
+    // Vérifier le solde pour les sorties
+    if (formData.type === 'sortie') {
+      const balances = await getBalancesByType(anneeActive.id);
+      const typeSortie = formData.type_sortie || 'operationnelle';
+      const sourceType = formData.source_type || 'frais_scolaires';
+      
+      let soldeDisponible = 0;
+      let typeSource = '';
+      
+      if (typeSortie === 'operationnelle') {
+        // Les dépenses opérationnelles utilisent toujours les frais scolaires
+        soldeDisponible = balances.frais_scolaires;
+        typeSource = 'frais scolaires';
+      } else if (typeSortie === 'don_donne' || typeSortie === 'autre') {
+        // Pour les dons donnés et autres sorties, vérifier selon la source choisie
+        if (sourceType === 'frais_scolaires') {
+          soldeDisponible = balances.frais_scolaires;
+          typeSource = 'frais scolaires';
+        } else if (sourceType === 'don') {
+          soldeDisponible = balances.don;
+          typeSource = 'dons reçus';
+        } else if (sourceType === 'autre_entree') {
+          soldeDisponible = balances.autre_entree;
+          typeSource = 'autres entrées';
+        }
+      }
+      
+      if (montantValue > soldeDisponible) {
+        throw new Error(`Solde insuffisant ! Solde disponible pour ${typeSource}: ${soldeDisponible.toFixed(2)} $. Montant demandé: ${montantValue.toFixed(2)} $.`);
+      }
+    }
 
     // Données à insérer
     const dataToInsert = {
@@ -67,6 +167,7 @@ export async function createJournalEntry(formData) {
       categorie: formData.categorie || '',
       type_entree: formData.type_entree || 'frais_scolaires', // Par défaut : frais scolaires
       type_sortie: formData.type_sortie || 'operationnelle', // Par défaut : dépense opérationnelle
+      source_type: formData.source_type || 'frais_scolaires', // Par défaut : frais scolaires
       annee_scolaire_id: anneeActive.id
     };
 
@@ -132,7 +233,8 @@ export async function updateJournalEntry(formData) {
       description: formData.description || '',
       categorie: formData.categorie || '',
       type_entree: formData.type_entree || 'frais_scolaires',
-      type_sortie: formData.type_sortie || 'operationnelle'
+      type_sortie: formData.type_sortie || 'operationnelle',
+      source_type: formData.source_type || 'frais_scolaires'
     };
 
     // Récupérer et stocker le nom de l'utilisateur si l'ID est fourni

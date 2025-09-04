@@ -17,8 +17,8 @@ import { useJournalQuery } from '@/hooks/useJournalQuery';
 import { useRubriquesQuery } from '@/hooks/useRubriquesQuery';
 import { useUser } from '@/lib/UserContext';
 import { useJournalStatsQuery } from '@/hooks/useJournalStatsQuery';
+import { useBalancesQuery } from '@/hooks/useBalancesQuery';
 import { useQueryClient } from '@tanstack/react-query';
-import JournalReportButton from '@/components/Report_Button/JournalReportButton';
 
 
 
@@ -95,6 +95,7 @@ export default function JournalPage() {
     categorie: '',
     type_entree: 'frais_scolaires', // Par défaut : frais scolaires
     type_sortie: 'operationnelle', // Par défaut : dépense opérationnelle
+    source_type: 'frais_scolaires', // Par défaut : source frais scolaires
     user_id: ''
   });
   
@@ -128,6 +129,24 @@ export default function JournalPage() {
   const {
     data: rubriquesData,
   } = useRubriquesQuery();
+
+  const {
+    data: balancesData,
+    isLoading: isBalancesLoading,
+    refetch: refetchBalances
+  } = useBalancesQuery({
+    enabled: !!anneeActiveData?.anneeActive,
+    onError: (error) => {
+      console.error('Erreur balances:', error.message);
+    }
+  });
+
+  const balances = balancesData || {
+    frais_scolaires: 0,
+    don: 0,
+    autre_entree: 0,
+    total: 0
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -170,12 +189,50 @@ export default function JournalPage() {
     }));
   };
 
+  // Configuration des sources fixes par type de sortie
+  const getFixedSourceForSortie = (typeSortie) => {
+    const sourceConfig = {
+      'operationnelle': 'frais_scolaires', // Toujours frais scolaires
+      'don_donne': 'don', // Configurable : 'don', 'frais_scolaires', 'autre_entree', ou null pour choix libre
+      'autre': 'autre_entree', // Configurable : 'autre_entree', 'frais_scolaires', 'don', ou null pour choix libre
+    };
+    return sourceConfig[typeSortie] || null;
+  };
+
+  // Fonction pour obtenir le nom d'affichage de la source
+  const getSourceDisplayName = (sourceType) => {
+    const sourceNames = {
+      'frais_scolaires': 'Frais scolaires',
+      'don': 'Dons reçus',
+      'autre_entree': 'Autres entrées'
+    };
+    return sourceNames[sourceType] || 'Source inconnue';
+  };
+
+  // Fonction pour obtenir l'emoji de la source
+  const getSourceEmoji = (sourceType) => {
+    const sourceEmojis = {
+      'frais_scolaires': '🔵',
+      'don': '🟣',
+      'autre_entree': '⚫'
+    };
+    return sourceEmojis[sourceType] || '⚪';
+  };
+
   const handleSelectChange = (name, value) => {
     if (name === 'type' && value === 'entree') {
       setFormData(prev => ({
         ...prev,
         [name]: value,
         categorie: ''
+      }));
+    } else if (name === 'type_sortie') {
+      // Définir la source selon la configuration
+      const fixedSource = getFixedSourceForSortie(value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        source_type: fixedSource || 'frais_scolaires' // Utiliser source fixe ou défaut
       }));
     } else {
       setFormData(prev => ({
@@ -194,6 +251,7 @@ export default function JournalPage() {
       categorie: '',
       type_entree: 'frais_scolaires',
       type_sortie: 'operationnelle',
+      source_type: 'frais_scolaires',
       user_id: userInfo?.id || ''
     });
     setIsEditing(false);
@@ -213,6 +271,7 @@ export default function JournalPage() {
         categorie: entry.categorie || '',
         type_entree: entry.type_entree || 'frais_scolaires',
         type_sortie: entry.type_sortie || 'operationnelle',
+        source_type: entry.source_type || 'frais_scolaires',
         user_id: userInfo?.id || entry.user_id
       });
     } else {
@@ -237,12 +296,61 @@ export default function JournalPage() {
     
     if (!formData.date || !formData.type || !formData.montant) {
       toast.error('Veuillez remplir tous les champs obligatoires');
+      setSubmitLoading(false);
       return;
     }
     
     if (formData.type === 'sortie' && !formData.categorie) {
       toast.error('Veuillez sélectionner une rubrique pour une sortie');
+      setSubmitLoading(false);
       return;
+    }
+    
+    // Vérification du solde côté client pour les sorties
+    if (formData.type === 'sortie' && !isEditing) {
+      const montantValue = parseFloat(formData.montant);
+      const typeSortie = formData.type_sortie || 'operationnelle';
+      const sourceType = formData.source_type || 'frais_scolaires';
+      
+      console.log('Validation côté client:', {
+        montantValue,
+        typeSortie,
+        sourceType,
+        balances
+      });
+      
+      let soldeDisponible = 0;
+      let typeSource = '';
+      
+      if (typeSortie === 'operationnelle') {
+        // Les dépenses opérationnelles utilisent toujours les frais scolaires
+        soldeDisponible = balances.frais_scolaires;
+        typeSource = 'frais scolaires';
+      } else if (typeSortie === 'don_donne' || typeSortie === 'autre') {
+        // Pour les dons donnés et autres sorties, vérifier selon la source choisie
+        if (sourceType === 'frais_scolaires') {
+          soldeDisponible = balances.frais_scolaires;
+          typeSource = 'frais scolaires';
+        } else if (sourceType === 'don') {
+          soldeDisponible = balances.don;
+          typeSource = 'dons reçus';
+        } else if (sourceType === 'autre_entree') {
+          soldeDisponible = balances.autre_entree;
+          typeSource = 'autres entrées';
+        }
+      }
+      
+      console.log('Solde check:', {
+        soldeDisponible,
+        typeSource,
+        isInsufficient: montantValue > soldeDisponible
+      });
+      
+      if (montantValue > soldeDisponible) {
+        toast.error(`Solde insuffisant ! Solde disponible pour ${typeSource}: ${soldeDisponible.toFixed(2)} $. Montant demandé: ${montantValue.toFixed(2)} $.`);
+        setSubmitLoading(false);
+        return;
+      }
     }
 
     try {
@@ -275,8 +383,10 @@ export default function JournalPage() {
 
       queryClient.invalidateQueries({ queryKey: ['journalStats'] });
       queryClient.invalidateQueries({ queryKey: ['journal'] });
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
       
       await refreshStats();
+      await refetchBalances();
 
       toast.success(`Entrée ${isEditing ? 'modifiée' : 'ajoutée'} avec succès`);
       setDialogOpen(false);
@@ -305,8 +415,10 @@ export default function JournalPage() {
       
       queryClient.invalidateQueries({ queryKey: ['journalStats'] });
       queryClient.invalidateQueries({ queryKey: ['journal'] });
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
       
       await refreshStats();
+      await refetchBalances();
 
       toast.success("Entrée supprimée avec succès");
       
@@ -372,6 +484,41 @@ export default function JournalPage() {
     </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Soldes Disponibles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isBalancesLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-600">Frais scolaires:</span>
+                  <span className="font-semibold">{balances.frais_scolaires.toFixed(2)} $</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-purple-600">Dons reçus:</span>
+                  <span className="font-semibold">{balances.don.toFixed(2)} $</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Autres entrées:</span>
+                  <span className="font-semibold">{balances.autre_entree.toFixed(2)} $</span>
+                </div>
+                <div className="border-t pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold">Total disponible:</span>
+                    <span className="font-bold text-green-600">{balances.total.toFixed(2)} $</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Aujourd'hui</CardTitle>
@@ -662,7 +809,7 @@ export default function JournalPage() {
                 </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Modifier une entrée' : 'Nouvelle entrée'}</DialogTitle>
             <DialogDescription>
@@ -670,7 +817,7 @@ export default function JournalPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="date">Date</Label>
                 <Input
@@ -777,6 +924,116 @@ export default function JournalPage() {
                       >
                         Autre
                       </Button>
+                    </div>
+                    
+                    {/* Choix de la source de fonds */}
+                    {(() => {
+                      const fixedSource = getFixedSourceForSortie(formData.type_sortie);
+                      
+                      if (fixedSource) {
+                        // Source fixe pour ce type de sortie
+                        const sourceEmoji = getSourceEmoji(fixedSource);
+                        const sourceName = getSourceDisplayName(fixedSource);
+                        const soldeSource = fixedSource === 'frais_scolaires' ? balances.frais_scolaires :
+                                          fixedSource === 'don' ? balances.don :
+                                          fixedSource === 'autre_entree' ? balances.autre_entree : 0;
+                        
+                        return (
+                          <div className="mt-3 p-3 bg-indigo-50 rounded-lg">
+                            <div className="text-sm">
+                              <span className="font-medium text-indigo-800">Source fixe : </span>
+                              <span className="font-bold text-indigo-600">
+                                {sourceEmoji} {sourceName} uniquement
+                              </span>
+                              <p className="text-xs text-indigo-600 mt-1">
+                                Solde disponible : {soldeSource.toFixed(2)} $
+                              </p>
+                              <p className="text-xs text-indigo-500 mt-1">
+                                {formData.type_sortie === 'operationnelle' && 'Les dépenses opérationnelles utilisent toujours les frais scolaires'}
+                                {formData.type_sortie === 'don_donne' && 'Les dons donnés utilisent automatiquement les dons reçus'}
+                                {formData.type_sortie === 'autre' && 'Les autres sorties utilisent automatiquement les autres entrées'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        // Choix libre (si vous voulez garder cette option pour certains types)
+                        return (
+                          <div className="mt-3">
+                            <Label htmlFor="source_type">Choisissez la source des fonds</Label>
+                            <div className="grid grid-cols-1 gap-2 mt-2">
+                              <Button
+                                type="button"
+                                variant={formData.source_type === 'frais_scolaires' ? "default" : "outline"}
+                                onClick={() => handleSelectChange('source_type', 'frais_scolaires')}
+                                className="text-xs justify-between"
+                              >
+                                <span>🔵 Frais scolaires</span>
+                                <span className="font-bold">{balances.frais_scolaires.toFixed(2)} $</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={formData.source_type === 'don' ? "default" : "outline"}
+                                onClick={() => handleSelectChange('source_type', 'don')}
+                                className="text-xs justify-between"
+                              >
+                                <span>🟣 Dons reçus</span>
+                                <span className="font-bold">{balances.don.toFixed(2)} $</span>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={formData.source_type === 'autre_entree' ? "default" : "outline"}
+                                onClick={() => handleSelectChange('source_type', 'autre_entree')}
+                                className="text-xs justify-between"
+                              >
+                                <span>⚫ Autres entrées</span>
+                                <span className="font-bold">{balances.autre_entree.toFixed(2)} $</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                    })()}
+                    
+                    {/* Affichage du solde disponible */}
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                      <div className="text-sm">
+                        <span className="font-medium">Solde disponible : </span>
+                        <span className="font-bold text-blue-600">
+                          {(() => {
+                            if (formData.type_sortie === 'operationnelle') {
+                              return balances.frais_scolaires.toFixed(2);
+                            } else if (formData.type_sortie === 'don_donne' || formData.type_sortie === 'autre') {
+                              if (formData.source_type === 'don') {
+                                return balances.don.toFixed(2);
+                              } else if (formData.source_type === 'autre_entree') {
+                                return balances.autre_entree.toFixed(2);
+                              } else {
+                                return balances.frais_scolaires.toFixed(2);
+                              }
+                            } else {
+                              return balances.frais_scolaires.toFixed(2);
+                            }
+                          })()} $
+                        </span>
+                        <span className="text-gray-600 ml-2">
+                          ({(() => {
+                            if (formData.type_sortie === 'operationnelle') {
+                              return 'Frais scolaires';
+                            } else if (formData.type_sortie === 'don_donne' || formData.type_sortie === 'autre') {
+                              if (formData.source_type === 'don') {
+                                return 'Dons reçus';
+                              } else if (formData.source_type === 'autre_entree') {
+                                return 'Autres entrées';
+                              } else {
+                                return 'Frais scolaires';
+                              }
+                            } else {
+                              return 'Frais scolaires';
+                            }
+                          })()})
+                        </span>
+                      </div>
                     </div>
                   </div>
                       </div>

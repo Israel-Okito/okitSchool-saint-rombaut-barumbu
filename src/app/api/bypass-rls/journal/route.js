@@ -57,15 +57,15 @@ export async function GET(request) {
     try {
       const testQuery = await adminClient
         .from('journal_de_caisse')
-        .select('type_entree, type_sortie')
+        .select('type_entree, type_sortie, source_type')
         .limit(1);
       
       if (!testQuery.error) {
-        selectFields = 'id, date, description, montant, type, categorie, type_entree, type_sortie, user_id, user_nom';
+        selectFields = 'id, date, description, montant, type, categorie, type_entree, type_sortie, source_type, user_id, user_nom';
       }
     } catch (testError) {
       // Les colonnes n'existent pas encore, utiliser l'ancien format
-      console.log('Les colonnes type_entree et type_sortie n\'existent pas encore');
+      console.log('Les colonnes type_entree, type_sortie et source_type n\'existent pas encore');
     }
     
     let query = adminClient
@@ -90,7 +90,8 @@ export async function GET(request) {
     const enrichedData = data.map(item => ({
       ...item,
       type_entree: item.type_entree || (item.type === 'entree' ? 'frais_scolaires' : undefined),
-      type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined)
+      type_sortie: item.type_sortie || (item.type === 'sortie' ? 'operationnelle' : undefined),
+      source_type: item.source_type || (item.type === 'sortie' ? 'frais_scolaires' : undefined)
     }));
 
     const response = { 
