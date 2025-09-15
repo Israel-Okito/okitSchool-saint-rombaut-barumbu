@@ -91,6 +91,7 @@ export async function GET(request) {
     const search = searchParams.get('search') || '';
     const offset = (page - 1) * limit;
     const forStats = searchParams.get('for_stats') === 'true';
+    const globalSearch = searchParams.get('global_search') === 'true';
     
     const adminClient = await createClient();
     const annee_scolaire_id = await getAnneeActive(adminClient);
@@ -128,10 +129,58 @@ export async function GET(request) {
       .order('date', { ascending: false });
     
     if (search) {
-      query = query.or(`description.ilike.%${search}%,type.ilike.%${search}%,eleve.nom.ilike.%${search}%,eleve.prenom.ilike.%${search}%,eleve.postnom.ilike.%${search}%`);
+      // Recherche uniquement dans les noms d'élèves (nom, prénom, postnom)
+      // D'abord, trouver les IDs des élèves qui correspondent à la recherche
+      const { data: elevesData, error: elevesError } = await adminClient
+        .from('eleves')
+        .select('id')
+        .eq('annee_scolaire_id', annee_scolaire_id)
+        .or(`nom.ilike.%${search}%,prenom.ilike.%${search}%,postnom.ilike.%${search}%`);
+      
+      if (elevesError) {
+        console.error('Erreur lors de la recherche des élèves:', elevesError);
+        return NextResponse.json(
+          { success: false, message: 'Erreur lors de la recherche des élèves' },
+          { status: 500 }
+        );
+      }
+      
+      // Si aucun élève trouvé, retourner un résultat vide
+      if (!elevesData || elevesData.length === 0) {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          total: 0,
+          count: 0,
+          stats: {
+            total: 0,
+            count: 0,
+            parType: { scolarite: 0, fraisdivers: 0, fraisconnexes: 0 },
+            parMois: {}
+          }
+        });
+      }
+      
+      // Filtrer les paiements par les IDs des élèves trouvés
+      const eleveIds = elevesData.map(eleve => eleve.id);
+      query = query.in('eleve_id', eleveIds);
     }
     
-    const { data, error, count } = await query.range(offset, offset + limit - 1);
+    // Si c'est une recherche globale, ne pas appliquer la pagination
+    let data, error, count;
+    if (globalSearch && search) {
+      // Recherche globale : récupérer tous les résultats correspondants
+      const result = await query;
+      data = result.data;
+      error = result.error;
+      count = result.count;
+    } else {
+      // Recherche normale avec pagination
+      const result = await query.range(offset, offset + limit - 1);
+      data = result.data;
+      error = result.error;
+      count = result.count;
+    }
 
     if (error) {
       console.error('Erreur Supabase:', error);

@@ -181,9 +181,14 @@ export default function ElevesPage() {
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
+    // Nettoyer les espaces seulement pour nom, prenom et postnom
+    const nameFields = ['nom', 'prenom', 'postnom'];
+    const cleanedValue = nameFields.includes(name) ? value.trim() : value;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : cleanedValue
     }));
   };
 
@@ -458,8 +463,8 @@ export default function ElevesPage() {
                             {eleve.nom}
                             {eleve.est_supprime && <span className="ml-2 text-xs text-red-500">(supprimé)</span>}
                           </TableCell>
-                          <TableCell>{eleve.prenom}</TableCell>
-                          <TableCell>{eleve.postnom}</TableCell>
+                          <TableCell>{eleve.prenom || '-'}</TableCell>
+                          <TableCell>{eleve.postnom || '-'}</TableCell>
                         
 
                           <TableCell>
@@ -578,7 +583,7 @@ export default function ElevesPage() {
                     name="prenom"
                     value={formData.prenom}
                     onChange={handleFormChange}
-                    required
+                    // required
                     placeholder="Prénom de l'élève"
                   />
                 </div>

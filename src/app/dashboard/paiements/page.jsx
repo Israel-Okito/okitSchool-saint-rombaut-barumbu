@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pencil, PlusCircle, Trash2, Wallet, BookOpen, Receipt, DollarSign, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +21,7 @@ import { createClient } from '@/utils/supabase/client';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ReceiptButton from '@/components/Report_Button/ReceiptButton';
 import { Search } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 // Map pour le cache utilisateur
@@ -39,7 +39,7 @@ export default function PaiementsPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   // eleveSearchTerm supprimé - Géré par EleveSelector maintenant
   
-  // Utiliser le hook optimisé pour les paiements
+  // Utiliser le hook optimisé pour les paiements (comme la page élèves)
   const { 
     data: paiementsData,
     isLoading: paiementsLoading, 
@@ -83,11 +83,9 @@ export default function PaiementsPage() {
   const [selectedPaiement, setSelectedPaiement] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchMontant, setSearchMontant] = useState('');
-  const [filteredPaiements, setFilteredPaiements] = useState([]);
   // filteredEleves supprimé - Géré par EleveSelector maintenant
   const [userNames, setUserNames] = useState({});
   const [userRole, setUserRole] = useState(null);
-  const [isSearchingLocally, setIsSearchingLocally] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false)
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
@@ -136,26 +134,13 @@ export default function PaiementsPage() {
 
   // Debounce du terme de recherche pour les paiements
   useEffect(() => {
-    // Si la recherche est courte (moins de 3 caractères), on filtre localement
-    if (searchTerm.length < 3) {
-      setIsSearchingLocally(true);
-      filterPaiementsLocally();
-      return;
-    }
-    
-    // Pour les recherches plus longues, on peut décider de filtrer localement ou via l'API
-    setIsSearchingLocally(true); // On privilégie toujours le filtrage local pour une meilleure UX
-    
     const timer = setTimeout(() => {
-      // On ne met à jour le terme debounced que si on veut une recherche serveur
-      if (!isSearchingLocally) {
-        setDebouncedSearchTerm(searchTerm);
-        setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
-      }
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Réinitialiser à la première page lors d'une nouvelle recherche
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [searchTerm, isSearchingLocally]);
+  }, [searchTerm]);
 
   // Plus besoin de useEffect pour la recherche d'élèves - EleveSelector s'en charge !
 
@@ -218,73 +203,27 @@ export default function PaiementsPage() {
     }
   }, [userNames]);
 
-    // Filtrage local des paiements pour une recherche plus fluide
-    const filterPaiementsLocally = useCallback(() => {
-      if (!paiementsData?.data) {
-        setFilteredPaiements([]);
-        return;
-      }
-      
-    let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
-      
-      // Filtre par texte (nom de l'élève, type, description, référence bancaire)
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        result = result.filter(
-          paiement => {
-            const eleve = paiement.eleve; // Utiliser directement les infos d'élève du paiement
-            return (
-              (eleve && (
-                eleve.nom?.toLowerCase().includes(searchLower) ||
-                eleve.postnom?.toLowerCase().includes(searchLower) ||
-                eleve.prenom?.toLowerCase().includes(searchLower) 
-              )) ||
-              paiement.type?.toLowerCase().includes(searchLower) ||
-              paiement.description?.toLowerCase().includes(searchLower)
-            );
-          }
-        );
-      }
-      
-      // Filtre par montant (supérieur ou égal à)
-      if (searchMontant && !isNaN(parseFloat(searchMontant))) {
-        const montantMin = parseFloat(searchMontant);
-        result = result.filter(paiement => {
-          const montant = parseFloat(paiement?.montant) || 0;
-          return montant >= montantMin;
-        });
-      }
-      
-      setFilteredPaiements(result);
-    }, [paiementsData, searchTerm, searchMontant]);
+  // État local pour les paiements filtrés (comme la page élèves)
+  const [filteredPaiements, setFilteredPaiements] = useState([]);
   
 
-  // Mise à jour des données filtrées quand les données changent ou quand les critères de recherche changent
+  // Mettre à jour les états locaux lorsque les données React Query changent (comme la page élèves)
   useEffect(() => {
-    if (paiementsData?.data) {
-      filterPaiementsLocally();
+    if (paiementsData?.success) {
+      setFilteredPaiements(paiementsData.data || []);
+      setTotalPaiements(paiementsData.total || 0);
       
       // Ne déclencher fetchUserNames que si nécessaire
-      const needsUserNames = paiementsData.data.some(p => 
-        p.user_id && !p.user_nom && !userCache.has(p.user_id)
-      );
-      if (needsUserNames) {
-        fetchUserNames(paiementsData.data);
-      }
-      
-      // Mettre à jour le total des paiements pour la pagination
-      if (paiementsData.total) {
-        setTotalPaiements(paiementsData.total);
+      if (paiementsData.data) {
+        const needsUserNames = paiementsData.data.some(p => 
+          p.user_id && !p.user_nom && !userCache.has(p.user_id)
+        );
+        if (needsUserNames) {
+          fetchUserNames(paiementsData.data);
+        }
       }
     }
-  }, [paiementsData, filterPaiementsLocally]);
-
-  // Appliquer le filtrage local quand les critères de recherche changent
-  useEffect(() => {
-    if (paiementsData?.data) {
-      filterPaiementsLocally();
-    }
-  }, [searchTerm, searchMontant, filterPaiementsLocally]);
+  }, [paiementsData, fetchUserNames]);
   
 
   // Mise à jour des statistiques globales
@@ -299,45 +238,6 @@ export default function PaiementsPage() {
 
 
   
-  // Fonction de filtrage des paiements
-  const filterPaiements = useCallback(() => {
-    if (!paiementsData?.data) {
-      setFilteredPaiements([]);
-      return;
-    }
-    
-    let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
-      
-      // Filtre par texte (nom de l'élève, type, description, référence bancaire)
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        result = result.filter(
-          paiement => {
-            const eleve = paiement.eleve; // Utiliser directement les infos d'élève du paiement
-            return (
-              (eleve && (
-                eleve.nom?.toLowerCase().includes(searchLower) ||
-                eleve.postnom?.toLowerCase().includes(searchLower) ||
-                eleve.prenom?.toLowerCase().includes(searchLower) 
-              )) ||
-              paiement.type?.toLowerCase().includes(searchLower) ||
-              paiement.description?.toLowerCase().includes(searchLower)
-            );
-          }
-        );
-      }
-    
-    // Filtre par montant (supérieur ou égal à)
-    if (searchMontant && !isNaN(parseFloat(searchMontant))) {
-      const montantMin = parseFloat(searchMontant);
-      result = result.filter(paiement => {
-        const montant = parseFloat(paiement.montant) || 0;
-        return montant >= montantMin;
-      });
-    }
-    
-    setFilteredPaiements(result);
-  }, [paiementsData, searchTerm, searchMontant]);
 
    // Plus besoin de useEffect pour filtrer les élèves - EleveSelector s'en charge !
 
@@ -492,8 +392,8 @@ export default function PaiementsPage() {
     }
   };
 
-  // Gérer l'affichage pendant le chargement
-  const isLoading = paiementsLoading  || isStatsLoading;
+  // Gérer l'affichage pendant le chargement (comme la page élèves)
+  const isLoading = paiementsLoading || isStatsLoading;
   const error = paiementsError;
   const totalPages = Math.ceil(totalPaiements / paiementsPerPage);
 
