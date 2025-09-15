@@ -312,12 +312,7 @@ export default function JournalPage() {
       const typeSortie = formData.type_sortie || 'operationnelle';
       const sourceType = formData.source_type || 'frais_scolaires';
       
-      // console.log('Validation côté client:', {
-      //   montantValue,
-      //   typeSortie,
-      //   sourceType,
-      //   balances
-      // });
+
       
       let soldeDisponible = 0;
       let typeSource = '';
@@ -339,12 +334,7 @@ export default function JournalPage() {
           typeSource = 'autres entrées';
         }
       }
-      
-      // console.log('Solde check:', {
-      //   soldeDisponible,
-      //   typeSource,
-      //   isInsufficient: montantValue > soldeDisponible
-      // });
+  
       
       if (montantValue > soldeDisponible) {
         toast.error(`Solde insuffisant ! Solde disponible pour ${typeSource}: ${soldeDisponible.toFixed(2)} $. Montant demandé: ${montantValue.toFixed(2)} $.`);

@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import EleveSelector from '@/components/EleveSelector';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, PlusCircle, Search, Trash2, Wallet, BookOpen, Receipt, DollarSign, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
+import { Pencil, PlusCircle, Trash2, Wallet, BookOpen, Receipt, DollarSign, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createPaiement, updatePaiement, deletePaiement } from '@/actions/paiements';
@@ -20,6 +21,7 @@ import { useUser } from '@/lib/UserContext';
 import { createClient } from '@/utils/supabase/client';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import ReceiptButton from '@/components/Report_Button/ReceiptButton';
+import { Search } from 'lucide-react';
 
 
 // Map pour le cache utilisateur
@@ -35,8 +37,7 @@ export default function PaiementsPage() {
   const [totalPaiements, setTotalPaiements] = useState(0);
   const paiementsPerPage = 10;
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [eleveSearchTerm, setEleveSearchTerm] = useState('');
-  const [debouncedEleveSearchTerm, setDebouncedEleveSearchTerm] = useState('');
+  // eleveSearchTerm supprimé - Géré par EleveSelector maintenant
   
   // Utiliser le hook optimisé pour les paiements
   const { 
@@ -72,52 +73,10 @@ export default function PaiementsPage() {
     refetchOnWindowFocus: false
   });
   
-  // État pour les résultats de recherche d'élèves
-  const [elevesData, setElevesData] = useState(null);
-  const [elevesLoading, setElevesLoading] = useState(false);
-  const [elevesError, setElevesError] = useState(null);
+  // État pour l'élève sélectionné - Simplifié avec le nouveau composant
+  const [selectedEleve, setSelectedEleve] = useState(null);
 
-  // Fonction pour rechercher les élèves
-  const searchEleves = useCallback(async (searchTerm) => {
-    if (searchTerm.length < 2) {
-      setElevesData(null);
-      return;
-    }
-
-    setElevesLoading(true);
-    setElevesError(null);
-
-    try {
-      const queryParams = new URLSearchParams({
-        page: '1',
-        limit: '5000'
-      });
-      
-      queryParams.append('search', searchTerm);
-      
-      const response = await fetch(`/api/bypass-rls/eleves?${queryParams.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des élèves');
-      }
-      
-      const data = await response.json();
-      // console.log('Élèves recherchés:', { term: searchTerm, total: data.data?.length || 0 });
-      setElevesData(data);
-    } catch (error) {
-      console.error('Erreur recherche élèves:', error);
-      setElevesError(error);
-    } finally {
-      setElevesLoading(false);
-    }
-  }, []);
-
-  // Fonction pour refetch (compatibilité)
-  const refetchEleves = useCallback(() => {
-    if (debouncedEleveSearchTerm) {
-      searchEleves(debouncedEleveSearchTerm);
-    }
-  }, [debouncedEleveSearchTerm, searchEleves]);
+  // Plus besoin de logique complexe - Le composant EleveSelector s'en charge !
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -125,8 +84,7 @@ export default function PaiementsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchMontant, setSearchMontant] = useState('');
   const [filteredPaiements, setFilteredPaiements] = useState([]);
-  const [filteredEleves, setFilteredEleves] = useState([]);
-  const [selectedEleve, setSelectedEleve] = useState(null); // Stocker l'élève sélectionné
+  // filteredEleves supprimé - Géré par EleveSelector maintenant
   const [userNames, setUserNames] = useState({});
   const [userRole, setUserRole] = useState(null);
   const [isSearchingLocally, setIsSearchingLocally] = useState(false);
@@ -199,24 +157,7 @@ export default function PaiementsPage() {
     return () => clearTimeout(timer);
   }, [searchTerm, isSearchingLocally]);
 
-  // Debounce du terme de recherche pour les élèves
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedEleveSearchTerm(eleveSearchTerm);
-    }, 500); // 500ms de délai pour éviter trop de requêtes
-    
-    return () => clearTimeout(timer);
-  }, [eleveSearchTerm]);
-
-  // Déclencher la recherche quand le terme debounced change
-  useEffect(() => {
-    if (debouncedEleveSearchTerm) {
-      searchEleves(debouncedEleveSearchTerm);
-    } else {
-      setElevesData(null);
-      setFilteredEleves([]);
-    }
-  }, [debouncedEleveSearchTerm, searchEleves]);
+  // Plus besoin de useEffect pour la recherche d'élèves - EleveSelector s'en charge !
 
 
   
@@ -284,15 +225,14 @@ export default function PaiementsPage() {
         return;
       }
       
-      let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
-      const eleves = elevesData?.data || [];
-        
+    let result = [...paiementsData.data].filter(p => p); // Filter out null/undefined
+      
       // Filtre par texte (nom de l'élève, type, description, référence bancaire)
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         result = result.filter(
           paiement => {
-            const eleve = eleves.find(e => e && e.id === paiement?.eleve_id);
+            const eleve = paiement.eleve; // Utiliser directement les infos d'élève du paiement
             return (
               (eleve && (
                 eleve.nom?.toLowerCase().includes(searchLower) ||
@@ -316,7 +256,7 @@ export default function PaiementsPage() {
       }
       
       setFilteredPaiements(result);
-    }, [paiementsData, elevesData, searchTerm, searchMontant]);
+    }, [paiementsData, searchTerm, searchMontant]);
   
 
   // Mise à jour des données filtrées quand les données changent ou quand les critères de recherche changent
@@ -399,18 +339,7 @@ export default function PaiementsPage() {
     setFilteredPaiements(result);
   }, [paiementsData, searchTerm, searchMontant]);
 
-   // Filtrer les élèves pour la recherche dans le formulaire
-   useEffect(() => {
-    if (elevesData?.data) {
-      setFilteredEleves(elevesData.data);
-    } else if (elevesLoading) {
-      // Garder la liste précédente pendant le chargement
-      // setFilteredEleves reste inchangé
-    } else {
-      // Vider si pas de données et pas en chargement
-      setFilteredEleves([]);
-    }
-  }, [elevesData, elevesLoading]);
+   // Plus besoin de useEffect pour filtrer les élèves - EleveSelector s'en charge !
 
 
   const calculateStats = useCallback((data, total) => {
@@ -469,7 +398,6 @@ export default function PaiementsPage() {
     setIsEditing(false);
     setSelectedPaiement(null);
     setSelectedEleve(null); // Réinitialiser l'élève sélectionné
-    setEleveSearchTerm(''); // Réinitialiser le terme de recherche
   };
 
   const handleOpenDialog = (paiement = null) => {
@@ -477,7 +405,6 @@ export default function PaiementsPage() {
       setIsEditing(true);
       setSelectedPaiement(paiement);
       setSelectedEleve(paiement.eleve); // Définir l'élève sélectionné
-      setEleveSearchTerm(paiement.eleve ? `${paiement.eleve.nom} ${paiement.eleve.postnom || ''} ${paiement.eleve.prenom}`.trim() : '');
       setFormData({
         eleve_id: paiement.eleve_id ? paiement.eleve_id.toString() : '',
         date: paiement.date ? new Date(paiement.date).toISOString().split('T')[0] : '',
@@ -566,8 +493,8 @@ export default function PaiementsPage() {
   };
 
   // Gérer l'affichage pendant le chargement
-  const isLoading = paiementsLoading || elevesLoading || isStatsLoading;
-  const error = paiementsError || elevesError;
+  const isLoading = paiementsLoading  || isStatsLoading;
+  const error = paiementsError;
   const totalPages = Math.ceil(totalPaiements / paiementsPerPage);
 
 
@@ -735,62 +662,17 @@ export default function PaiementsPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="eleve_id">Élève</Label>
-                <div className="space-y-2">
-                <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Rechercher un élève par nom ou prénom..."
-                        value={eleveSearchTerm}
-                        onChange={(e) => setEleveSearchTerm(e.target.value)}
-                        className="mb-2 pl-8 border-blue-300 focus:border-blue-500"
-                      />
-                      <Search className="absolute left-2 top-3 h-4 w-4 text-blue-500" />
-                      {eleveSearchTerm && eleveSearchTerm.length >= 2 && !formData.eleve_id && (
-                        <div className="absolute z-10 w-full max-h-40 overflow-auto bg-white border rounded-md shadow-lg">
-                          {elevesLoading ? (
-                            <div className="p-3 text-center">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                              <p className="text-sm text-gray-500">Recherche en cours...</p>
-                            </div>
-                          ) : filteredEleves.length > 0 ? (
-                            filteredEleves.map(eleve => (
-                              <div
-                                key={eleve.id}
-                                className="p-2 hover:bg-gray-100 cursor-pointer transition-colors"
-                                onClick={() => {
-                                  setFormData({...formData, eleve_id: eleve.id.toString()});
-                                  setSelectedEleve(eleve); // Stocker l'élève sélectionné
-                                  setEleveSearchTerm(`${eleve.nom} ${eleve.postnom} ${eleve.prenom}`);
-                                  setFilteredEleves([]);
-                                }}
-                              >
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium">{eleve.nom}  {eleve.postnom ? `${eleve.postnom}` : ''}  {eleve.prenom}</span>
-                                  {eleve.classes && (
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
-                                      {eleve.classes.nom || "Classe non définie"}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="p-3 text-center">
-                              <p className="text-gray-500">Aucun élève trouvé pour "{eleveSearchTerm}"</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {formData.eleve_id && selectedEleve && (
-                      <div className="p-2 bg-muted rounded-md text-sm mt-1">
-                        Élève sélectionné: {selectedEleve.nom} {selectedEleve.postnom || ''} {selectedEleve.prenom}
-                      </div>
-                    )}
-                </div>
-              </div>
+              <EleveSelector
+                selectedEleve={selectedEleve}
+                onEleveSelect={(eleve) => {
+                  setSelectedEleve(eleve);
+                  setFormData(prev => ({
+                    ...prev,
+                    eleve_id: eleve ? eleve.id.toString() : ''
+                  }));
+                }}
+                required
+              />
               
               <div className="grid gap-2">
                 <Label htmlFor="date">Date</Label>
@@ -909,10 +791,6 @@ export default function PaiementsPage() {
                     filteredPaiements.map((paiement, index) => {
                       // Utiliser directement les informations d'élève du paiement (via la jointure API)
                       const eleve = paiement.eleve;
-                      // Debug: vérifier les données d'élève
-                      if (!eleve) {
-                        console.log('Paiement sans élève:', paiement);
-                      }
                     return (
                       <TableRow key={`${paiement.id}-${index}`}  className={index % 2 === 0 ? 'bg-muted' : 'bg-white'}>
                         <TableCell>{eleve ? `${eleve.nom} ${eleve.postnom || ''} ${eleve.prenom}`.trim() : 'Élève non trouvé'}</TableCell>
