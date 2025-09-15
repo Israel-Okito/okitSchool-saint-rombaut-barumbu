@@ -65,7 +65,7 @@ export async function GET(request) {
     
 
     if (search) {
-      query = query.or(`nom.ilike.%${search}%,prenom.ilike.%${search}%`);
+      query = query.or(`nom.ilike.%${search}%,prenom.ilike.%${search}%,postnom.ilike.%${search}%`);
     }
     
     // Filtrer par classe si spécifié

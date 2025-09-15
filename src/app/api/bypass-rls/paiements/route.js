@@ -122,13 +122,13 @@ export async function GET(request) {
         description, 
         eleve_id,
         user_id,
-        eleve:eleve_id(id, nom, prenom, classe_id, classe:classe_id(id, nom, niveau))
+        eleve:eleve_id(id, nom, prenom, postnom, classe_id, classe:classe_id(id, nom, niveau))
       `, { count: 'exact' })
       .eq('annee_scolaire_id', annee_scolaire_id)
       .order('date', { ascending: false });
     
     if (search) {
-      query = query.or(`description.ilike.%${search}%,type.ilike.%${search}%`);
+      query = query.or(`description.ilike.%${search}%,type.ilike.%${search}%,eleve.nom.ilike.%${search}%,eleve.prenom.ilike.%${search}%,eleve.postnom.ilike.%${search}%`);
     }
     
     const { data, error, count } = await query.range(offset, offset + limit - 1);
