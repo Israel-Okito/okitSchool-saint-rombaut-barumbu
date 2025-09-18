@@ -67,7 +67,6 @@ const PaiementsTable = ({
               <TableHead>Date</TableHead>
               <TableHead>Montant</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Libellé</TableHead>
               <TableHead>Traçabilité</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -116,7 +115,6 @@ const PaiementsTable = ({
             <TableHead>Date</TableHead>
             <TableHead>Montant</TableHead>
             <TableHead>Type</TableHead>
-            <TableHead>Libellé</TableHead>
             <TableHead>Traçabilité</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
