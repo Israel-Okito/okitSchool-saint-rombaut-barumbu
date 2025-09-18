@@ -37,22 +37,18 @@ async function getAnneeActive(adminClient) {
 
 // Fonction pour calculer les statistiques des paiements
 async function calculatePaiementStats(adminClient, anneeId) {
+  // Utiliser directement la fonction de fallback qui fonctionne parfaitement
+  // et évite la limite de 1000 enregistrements de Supabase
+  return await calculatePaiementStatsFallback(adminClient, anneeId);
+}
+
+// Fonction qui récupère tous les paiements par pagination pour calculer les statistiques
+async function calculatePaiementStatsFallback(adminClient, anneeId) {
   try {
-    // Récupérer tous les montants et types pour calculer les statistiques
-    const { data, error, count } = await adminClient
-      .from('paiements_eleves')
-      .select('montant, type', { count: 'exact' })
-      .eq('annee_scolaire_id', anneeId);
-
-    if (error) {
-      console.error('Erreur lors du calcul des statistiques:', error);
-      return null;
-    }
-
-    // Calculer les statistiques
+    
     const stats = {
       total: 0,
-      count: count || 0,
+      count: 0,
       parType: {
         scolarite: 0,
         fraisdivers: 0,
@@ -61,24 +57,56 @@ async function calculatePaiementStats(adminClient, anneeId) {
       }
     };
 
-    data.forEach(paiement => {
-      const montant = parseFloat(paiement.montant) || 0;
-      stats.total += montant;
-      
-      // Convertir le type en minuscules et enlever les espaces
-      const typeKey = paiement.type?.toLowerCase().replace(/\s+/g, '') || 'autres';
-      
-      // Vérifier si ce type existe dans notre objet de statistiques
-      if (stats.parType.hasOwnProperty(typeKey)) {
-        stats.parType[typeKey] += montant;
-      } else {
-        stats.parType.autres += montant;
+    let offset = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error, count } = await adminClient
+        .from('paiements_eleves')
+        .select('montant, type', { count: 'exact' })
+        .eq('annee_scolaire_id', anneeId)
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('Erreur lors de la récupération des paiements:', error);
+        break;
       }
-    });
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // Calculer les statistiques pour cette page
+      data.forEach(paiement => {
+        const montant = parseFloat(paiement.montant) || 0;
+        stats.total += montant;
+        
+        // Convertir le type en minuscules et enlever les espaces
+        const typeKey = paiement.type?.toLowerCase().replace(/\s+/g, '') || 'autres';
+        
+        // Vérifier si ce type existe dans notre objet de statistiques
+        if (stats.parType.hasOwnProperty(typeKey)) {
+          stats.parType[typeKey] += montant;
+        } else {
+          stats.parType.autres += montant;
+        }
+      });
+
+      // Mettre à jour le count total (seulement à la première itération)
+      if (offset === 0) {
+        stats.count = count || 0;
+      }
+
+      // Vérifier s'il y a plus de données
+      hasMore = data.length === limit;
+      offset += limit;
+    }
 
     return stats;
   } catch (error) {
-    console.error('Erreur lors du calcul des statistiques:', error);
+    console.error('Erreur lors du calcul des statistiques fallback:', error);
     return null;
   }
 }

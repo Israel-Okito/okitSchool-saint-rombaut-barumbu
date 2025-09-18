@@ -101,6 +101,7 @@ export default function PaiementsPage() {
     }
   });
 
+
   const [formData, setFormData] = useState({
     eleve_id: '',
     date: '',
@@ -354,8 +355,7 @@ export default function PaiementsPage() {
       // Rafraîchir toutes les données en parallèle
       await Promise.all([
         refetchPaiements(),
-        refetchStats(),
-        refetchEleves()
+        refetchStats()
       ]);
       
     } catch (error) {
@@ -382,8 +382,7 @@ export default function PaiementsPage() {
       
       await Promise.all([
         refetchPaiements(),
-        refetchStats(),
-        refetchEleves()
+        refetchStats()
       ]);
       
     } catch (error) {
@@ -444,7 +443,7 @@ export default function PaiementsPage() {
               Nouveau paiement
         </Button>
       </div>
-       {(userRole === 'directeur' || userRole === 'admin' || userRole === 'secretaire') && (
+       {(userRole === 'directeur' || userRole === 'admin') && (
            <div className='flex justify-end  mb-4'>
                <Link href='/dashboard/paiements-supprimes'  className=' bg-black text-white text-sm text-center p-2 rounded-lg hover:bg-gray-800 cursor-pointer'>
                    Voir les paiements des élèves supprimés
