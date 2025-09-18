@@ -172,7 +172,7 @@ export async function updatePaiement(formData) {
   }
 }
 
-export async function deletePaiement(id) {
+export async function deletePaiement(id, deletedByUserId = null) {
   const supabase = await createClient();
   
   try {
@@ -195,12 +195,28 @@ export async function deletePaiement(id) {
       throw new Error('Paiement non trouvé');
     }
 
-    // Copier le paiement dans la table historique
+    // Récupérer les informations de l'utilisateur qui supprime le paiement
+    let deletedByNom = null;
+    if (deletedByUserId) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, nom, prenom')
+        .eq('id', deletedByUserId)
+        .single();
+        
+      if (!userError && userData) {
+        deletedByNom = `${userData.nom || ''} ${userData.prenom || ''}`.trim();
+      }
+    }
+
+    // Copier le paiement dans la table historique avec l'information sur qui l'a supprimé
     const { error: historyError } = await supabase
       .from('paiements_eleves_deleted')
       .insert([{
         ...existingPaiement,
-        deleted_at: new Date().toISOString()
+        deleted_at: new Date().toISOString(),
+        deleted_by_user_id: deletedByUserId,
+        deleted_by_nom: deletedByNom
       }]);
 
     if (historyError) throw historyError;

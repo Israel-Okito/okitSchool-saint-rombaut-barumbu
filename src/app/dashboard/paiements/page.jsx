@@ -372,7 +372,7 @@ export default function PaiementsPage() {
     }
 
     try {
-      const result = await deletePaiement(id);
+      const result = await deletePaiement(id, user?.id);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -555,7 +555,7 @@ export default function PaiementsPage() {
             <DialogTitle>{isEditing ? 'Modifier le paiement' : 'Ajouter un paiement'}</DialogTitle>
             <DialogDescription>
               {isEditing 
-                ? 'Mettez à jour les informations de paiement ci-dessous.'
+                ? 'Mettez à jour les informations de paiement ci-dessous. L\'élève et la date ne peuvent pas être modifiés.'
                 : 'Entrez les détails du nouveau paiement.'}
             </DialogDescription>
           </DialogHeader>
@@ -571,6 +571,7 @@ export default function PaiementsPage() {
                   }));
                 }}
                 required
+                disabled={isEditing}
               />
               
               <div className="grid gap-2">
@@ -582,6 +583,8 @@ export default function PaiementsPage() {
                   value={formData.date}
                   onChange={handleChange}
                   required
+                  disabled={isEditing}
+                  className={isEditing ? 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed' : ''}
                 />
               </div>
               

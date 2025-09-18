@@ -70,7 +70,22 @@ export default function PaiementsSupprimesPage() {
         .rpc('get_paiements_eleves_supprimes');
 
       if (error) throw error;
-      setPaiements(data || []);
+      
+      // Déduplication des paiements basée sur une combinaison unique
+      const uniquePaiements = [];
+      const seen = new Set();
+      
+      (data || []).forEach(paiement => {
+        // Créer une clé unique basée sur plusieurs propriétés
+        const uniqueKey = `${paiement.id}-${paiement.eleve_id}-${paiement.date}-${paiement.montant}-${paiement.type}`;
+        
+        if (!seen.has(uniqueKey)) {
+          seen.add(uniqueKey);
+          uniquePaiements.push(paiement);
+        }
+      });
+      
+      setPaiements(uniquePaiements);
     } catch (error) {
       console.error('Erreur lors de la récupération des paiements:', error);
       toast.error('Erreur lors de la récupération des paiements');
@@ -202,7 +217,7 @@ export default function PaiementsSupprimesPage() {
               </div>
               <div>
                 <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger>
+                  <SelectTrigger >
                     <SelectValue placeholder="Type de paiement" />
                   </SelectTrigger>
                   <SelectContent>
@@ -236,7 +251,6 @@ export default function PaiementsSupprimesPage() {
                     <TableHead>Élève</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Montant</TableHead>
-                    <TableHead>Référence bancaire</TableHead>
                     <TableHead>Traçabilité</TableHead>
                     <TableHead>Date de paiement</TableHead>
                     <TableHead>Date de suppression</TableHead>
@@ -245,8 +259,8 @@ export default function PaiementsSupprimesPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedPaiements.length > 0 ? (
-                    paginatedPaiements.map((paiement) => (
-                      <TableRow key={paiement.id}>
+                    paginatedPaiements.map((paiement, index) => (
+                      <TableRow key={`${paiement.id}-${paiement.eleve_id}-${paiement.date}-${index}`}>
                         <TableCell>
                           {paiement.nom} {paiement.prenom}
                         </TableCell>
@@ -256,12 +270,27 @@ export default function PaiementsSupprimesPage() {
                         <TableCell>{paiement.montant} $</TableCell>
                        
                         <TableCell>
-                          {paiement.user_nom ? (
-                            <div className="flex items-center">
-                              <User className="h-3 w-3 mr-1" />
-                              <span className="text-xs">{paiement.user_nom}</span>
-                            </div>
-                          ) : '-'}
+                          <div className="space-y-1">
+                            {paiement.user_nom && (
+                              <div className="flex items-center">
+                                <User className="h-3 w-3 mr-1" />
+                                <span className="text-xs">
+                                  <span className="font-medium">Créé par:</span> {paiement.user_nom}
+                                </span>
+                              </div>
+                            )}
+                            {paiement.deleted_by_nom && (
+                              <div className="flex items-center">
+                                <User className="h-3 w-3 mr-1" />
+                                <span className="text-xs text-red-600">
+                                  <span className="font-medium">Supprimé par:</span> {paiement.deleted_by_nom}
+                                </span>
+                              </div>
+                            )}
+                            {!paiement.user_nom && !paiement.deleted_by_nom && (
+                              <span className="text-xs text-gray-500">-</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {format(new Date(paiement.date), 'PPP', { locale: fr })}

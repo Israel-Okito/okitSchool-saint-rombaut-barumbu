@@ -9,7 +9,8 @@ const EleveSelector = ({
   onEleveSelect, 
   onSearchTermChange,
   className = "",
-  required = false 
+  required = false,
+  disabled = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -34,6 +35,8 @@ const EleveSelector = ({
 
   // Recherche avec debounce optimisé
   useEffect(() => {
+    if (disabled) return; // Empêcher la recherche si désactivé
+    
     if (searchTerm.length >= 2) {
       // Déclencher la recherche
       searchEleves(searchTerm);
@@ -41,7 +44,7 @@ const EleveSelector = ({
       setFilteredEleves([]);
       setShowDropdown(false);
     }
-  }, [searchTerm, searchEleves]);
+  }, [searchTerm, searchEleves, disabled]);
 
   // Mettre à jour les résultats quand elevesData change
   useEffect(() => {
@@ -55,6 +58,8 @@ const EleveSelector = ({
   }, [elevesData, selectedEleve]);
 
   const handleInputChange = (e) => {
+    if (disabled) return; // Empêcher toute modification si désactivé
+    
     const value = e.target.value;
     setSearchTerm(value);
     
@@ -67,6 +72,8 @@ const EleveSelector = ({
   };
 
   const handleEleveSelect = (eleve) => {
+    if (disabled) return; // Empêcher la sélection si désactivé
+    
     const displayName = `${eleve.nom} ${eleve.postnom || ''} ${eleve.prenom}`.trim();
     setSearchTerm(displayName);
     onEleveSelect(eleve);
@@ -99,17 +106,18 @@ const EleveSelector = ({
           value={searchTerm}
           onChange={handleInputChange}
           onFocus={() => {
-            if (filteredEleves.length > 0) {
+            if (filteredEleves.length > 0 && !disabled) {
               setShowDropdown(true);
             }
           }}
-          className="pl-8 border-blue-300 focus:border-blue-500"
+          className={`pl-8 ${disabled ? 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed' : 'border-blue-300 focus:border-blue-500'}`}
           autoComplete="off"
+          disabled={disabled}
         />
-        <Search className="absolute left-2 top-3 h-4 w-4 text-blue-500" />
+        <Search className={`absolute left-2 top-3 h-4 w-4 ${disabled ? 'text-gray-400' : 'text-blue-500'}`} />
         
         {/* Dropdown des résultats */}
-        {showDropdown && (
+        {showDropdown && !disabled && (
           <div className="absolute z-50 w-full max-h-60 overflow-auto bg-white border border-gray-200 rounded-md shadow-lg mt-1">
             {elevesLoading ? (
               <div className="p-3 text-center">
